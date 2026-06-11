@@ -7,3 +7,5 @@ services:
     envVars:
       - key: DISCORD_TOKEN
         sync: false
+      - key: YT_API_KEY
+        sync: false

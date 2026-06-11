@@ -38,7 +38,12 @@ client.on('raw', packet => {
   }
 })
 
-const ytDlpBin = path.join(__dirname, '..', 'node_modules', '@distube', 'yt-dlp', 'bin', 'yt-dlp.exe')
+const ytDlpBin = path.join(
+  __dirname, '..', 'node_modules', '@distube', 'yt-dlp', 'bin',
+  `yt-dlp${process.platform === 'win32' ? '.exe' : ''}`
+)
+
+const YT_API_KEY = process.env.YT_API_KEY
 
 const queue = new Map()
 const activeProcesses = new Map()
@@ -70,6 +75,19 @@ async function getYtInfo(url) {
     })
     proc.on('error', reject)
   })
+}
+
+async function searchYoutube(query) {
+  if (!YT_API_KEY) {
+    const results = await play.search(query, { limit: 1 })
+    if (!results.length) return null
+    return { title: results[0].title, url: results[0].url }
+  }
+  const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&key=${YT_API_KEY}&maxResults=1&type=video`)
+  const data = await res.json()
+  if (!data.items?.length) return null
+  const video = data.items[0]
+  return { title: video.snippet.title, url: `https://youtu.be/${video.id.videoId}` }
 }
 
 async function playSong(guildId, retries = 3) {
@@ -227,9 +245,9 @@ client.on('interactionCreate', async interaction => {
     if (play.yt_validate(query) === 'video') {
       songUrl = query
     } else {
-      const results = await play.search(query, { limit: 1 })
-      if (!results.length) return interaction.editReply('Lagu tidak ditemukan!')
-      songUrl = results[0].url
+      const result = await searchYoutube(query)
+      if (!result) return interaction.editReply('Lagu tidak ditemukan!')
+      songUrl = result.url
     }
 
     try {
