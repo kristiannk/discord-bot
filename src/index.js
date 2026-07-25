@@ -57,7 +57,7 @@ function getQueue(guildId) {
 }
 
 async function getYtInfo(url) {
-  const args = ['-f', 'bestaudio', '--print-json', '--no-warnings']
+  const args = ['-f', 'bestaudio/best', '--print-json', '--no-warnings']
   if (require('fs').existsSync(cookiesPath)) args.push('--cookies', cookiesPath)
   return new Promise((resolve, reject) => {
     const proc = spawn(ytDlpBin, [...args, url])
@@ -115,7 +115,7 @@ async function playSong(guildId, retries = 3) {
       }
     }
 
-    const streamArgs = ['-f', 'bestaudio', '-o', '-', '--no-warnings']
+    const streamArgs = ['-f', 'bestaudio/best', '-o', '-', '--no-warnings']
     if (require('fs').existsSync(cookiesPath)) streamArgs.push('--cookies', cookiesPath)
     const proc = spawn(ytDlpBin, [...streamArgs, song.url])
 
