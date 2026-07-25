@@ -38,6 +38,8 @@ client.on('raw', packet => {
   }
 })
 
+const ffmpegPath = require('ffmpeg-static')
+
 const ytDlpBin = path.join(
   __dirname, '..', 'node_modules', '@distube', 'yt-dlp', 'bin',
   `yt-dlp${process.platform === 'win32' ? '.exe' : ''}`
@@ -115,22 +117,40 @@ async function playSong(guildId, retries = 3) {
       }
     }
 
-    const streamArgs = ['-f', 'ba', '-o', '-', '--no-warnings', '--extractor-args', 'youtube:player_client=web_creator']
+    const streamArgs = ['-f', 'bestaudio', '-o', '-', '--no-warnings', '--extractor-args', 'youtube:player_client=web_creator']
     if (require('fs').existsSync(cookiesPath)) streamArgs.push('--cookies', cookiesPath)
-    if (require('fs').existsSync(cookiesPath)) streamArgs.push('--cookies', cookiesPath)
-    const proc = spawn(ytDlpBin, [...streamArgs, song.url])
+    const ytdlp = spawn(ytDlpBin, [...streamArgs, song.url])
 
-    activeProcesses.set(guildId, proc)
+    activeProcesses.set(guildId, ytdlp)
 
-    const resource = createAudioResource(proc.stdout, { inputType: 'arbitrary' })
+    const ffmpeg = spawn(ffmpegPath, [
+      '-reconnect', '1',
+      '-reconnect_streamed', '1',
+      '-reconnect_delay_max', '5',
+      '-i', 'pipe:0',
+      '-af', 'bass=g=5,aresample=48000',
+      '-f', 'opus',
+      '-ar', '48000',
+      '-ac', '2',
+      'pipe:1',
+    ])
+
+    ytdlp.stdout.pipe(ffmpeg.stdin)
+    ffmpeg.on('error', (err) => console.error('FFmpeg error:', err.message))
+    ytdlp.stderr.on('data', (d) => {
+      const msg = d.toString()
+      if (msg.includes('ERROR') || msg.includes('error')) console.error('yt-dlp:', msg.trim())
+    })
+
+    const resource = createAudioResource(ffmpeg.stdout, { inputType: 'opus' })
     q.player.play(resource)
 
-    proc.on('error', () => {
+    ytdlp.on('error', () => {
       q.songs.shift()
       playSong(guildId)
     })
 
-    proc.on('close', code => {
+    ytdlp.on('close', code => {
       if (code !== 0 && code !== null) {
         console.error(`yt-dlp exited with code ${code}`)
       }
