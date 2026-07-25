@@ -44,6 +44,7 @@ const ytDlpBin = path.join(
 )
 
 const YT_API_KEY = process.env.YT_API_KEY
+const cookiesPath = path.join(__dirname, '..', 'cookies.txt')
 
 const queue = new Map()
 const activeProcesses = new Map()
@@ -56,13 +57,10 @@ function getQueue(guildId) {
 }
 
 async function getYtInfo(url) {
+  const args = ['-f', 'bestaudio', '--print-json', '--no-warnings']
+  if (require('fs').existsSync(cookiesPath)) args.push('--cookies', cookiesPath)
   return new Promise((resolve, reject) => {
-    const proc = spawn(ytDlpBin, [
-      '-f', 'bestaudio',
-      '--print-json',
-      '--no-warnings',
-      url,
-    ])
+    const proc = spawn(ytDlpBin, [...args, url])
     let stdout = ''
     let stderr = ''
     proc.stdout.on('data', d => { stdout += d })
@@ -117,12 +115,9 @@ async function playSong(guildId, retries = 3) {
       }
     }
 
-    const proc = spawn(ytDlpBin, [
-      '-f', 'bestaudio',
-      '-o', '-',
-      '--no-warnings',
-      song.url,
-    ])
+    const streamArgs = ['-f', 'bestaudio', '-o', '-', '--no-warnings']
+    if (require('fs').existsSync(cookiesPath)) streamArgs.push('--cookies', cookiesPath)
+    const proc = spawn(ytDlpBin, [...streamArgs, song.url])
 
     activeProcesses.set(guildId, proc)
 
