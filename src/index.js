@@ -157,7 +157,6 @@ const commands = [
   new SlashCommandBuilder().setName('stop').setDescription('Berhenti dan keluar dari voice channel'),
   new SlashCommandBuilder().setName('queue').setDescription('Lihat antrian lagu'),
   new SlashCommandBuilder().setName('nowplaying').setDescription('Lagu yang sedang diputar'),
-  new SlashCommandBuilder().setName('jointest').setDescription('Test: join voice tanpa search'),
 ].map(cmd => cmd.toJSON())
 
 client.on('interactionCreate', async interaction => {
@@ -332,53 +331,6 @@ client.on('interactionCreate', async interaction => {
     return interaction.reply({ embeds: [embed] })
   }
 
-  if (commandName === 'jointest') {
-    const voiceChannel = member.voice.channel
-    if (!voiceChannel) return interaction.reply({ content: 'Join voice channel dulu!', ephemeral: true })
-
-    // FORCE join secret room (channel that works in standalone)
-    const targetChannel = interaction.guild.channels.cache.get('1424393815132868743')
-    if (!targetChannel) return interaction.reply({ content: 'Target channel not found!', ephemeral: true })
-
-    const _guild = interaction.guild
-    const origCreator = _guild.voiceAdapterCreator
-    const wrapped = methods => {
-      console.log('JT ADAPTER CREATED for guild', _guild.id)
-      const r = origCreator(methods)
-      const origSend = r.sendPayload
-      r.sendPayload = data => {
-        console.log('JT sendPayload payload:', JSON.stringify(data))
-        const ok = origSend(data)
-        console.log('JT sendPayload:', ok, 'shard status:', _guild.shard?.status, 'shard id:', _guild.shardId)
-        return ok
-      }
-      return r
-    }
-    const conn = joinVoiceChannel({
-      channelId: targetChannel.id,
-      guildId,
-      adapterCreator: wrapped,
-      debug: true,
-    })
-
-    // Reply immediately so interaction doesn't timeout
-    await interaction.reply({ content: 'Mencoba join voice...', ephemeral: true })
-
-    conn.on('stateChange', (o, n) => console.log(`JoinTest: ${o.status} -> ${n.status}`))
-    conn.on('error', e => console.error('JoinTest error:', e))
-    
-    // Wait outside interaction handler via setImmediate
-    setImmediate(async () => {
-      try {
-        await entersState(conn, VoiceConnectionStatus.Ready, 30_000)
-        console.log('JoinTest READY!')
-      } catch {
-        console.log('JoinTest timeout, state:', conn.state.status)
-      }
-    })
-    return
-  }
-
   if (commandName === 'nowplaying') {
     const q = getQueue(guildId)
     if (!q.playing || !q.songs.length) {
@@ -417,7 +369,15 @@ async function registerCommands() {
     throw new Error('Client user is not ready')
   }
 
-  await rest.put(Routes.applicationCommands(client.user.id), { body: commands })
+  const appId = client.user.id
+
+  await rest.put(Routes.applicationCommands(appId), { body: commands })
+
+  const guilds = client.guilds.cache
+  for (const [guildId] of guilds) {
+    await rest.put(Routes.applicationGuildCommands(appId, guildId), { body: [] }).catch(() => {})
+  }
+
   console.log('Slash command siap')
 }
 
