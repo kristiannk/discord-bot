@@ -61,7 +61,10 @@ const queue = new Map()
 const activeProcesses = new Map()
 
 const ytDlpEnv = { ...process.env }
-if (nodeDir) ytDlpEnv.PATH = nodeDir + ';' + (ytDlpEnv.PATH || '')
+if (nodeDir) {
+  const pathKey = Object.keys(ytDlpEnv).find(k => k.toLowerCase() === 'path') || 'Path'
+  ytDlpEnv[pathKey] = nodeDir + ';' + (ytDlpEnv[pathKey] || '')
+}
 
 function getQueue(guildId) {
   if (!queue.has(guildId)) {
