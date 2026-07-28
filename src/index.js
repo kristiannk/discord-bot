@@ -43,18 +43,15 @@ const ffmpegPath = require('ffmpeg-static')
 const YT_API_KEY = process.env.YT_API_KEY
 const cookiesPath = path.join(__dirname, '..', 'cookies.txt')
 
-const ytDlpBin = (() => {
-  if (process.platform === 'win32') {
-    try {
-      const result = execSync('where yt-dlp', { encoding: 'utf8' }).trim().split(/\r?\n/)[0]
-      if (result) return result
-    } catch {}
-    return 'python'
-  }
-  return 'yt-dlp'
+const runPyPath = path.join(__dirname, '..', 'run.py')
+const ytDlpExe = (() => {
+  if (process.platform !== 'win32') return null
+  try { return execSync('where yt-dlp', { encoding: 'utf8' }).trim().split(/\r?\n/)[0] } catch { return null }
 })()
-const ytDlpArgs = process.platform === 'win32' && ytDlpBin.includes('python') ? ['-m', 'yt_dlp'] : []
-console.log('ytDlpBin:', ytDlpBin)
+const usePyWrapper = process.platform === 'win32' && require('fs').existsSync(runPyPath)
+const ytDlpBin = usePyWrapper ? 'python' : 'yt-dlp'
+const ytDlpArgs = usePyWrapper ? [runPyPath, ytDlpExe || 'yt-dlp'] : []
+console.log('ytDlpBin:', ytDlpBin, 'ytDlpArgs:', ytDlpArgs)
 
 const queue = new Map()
 const activeProcesses = new Map()
@@ -126,7 +123,7 @@ async function playSong(guildId, retries = 3) {
       }
     }
 
-    const streamArgs = ['-f', 'ba', '-o', '-', '--extractor-args', 'youtube:player_client=web_creator', '--remote-components', 'ejs:github', '--cookies', cookiesPath, '--verbose']
+    const streamArgs = ['-f', 'ba', '-o', '-', '--extractor-args', 'youtube:player_client=web_creator', '--remote-components', 'ejs:github', '--cookies', cookiesPath]
     const ytdlp = spawn(ytDlpBin, [...ytDlpArgs, ...streamArgs, song.url])
 
     activeProcesses.set(guildId, ytdlp)
