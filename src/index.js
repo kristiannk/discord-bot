@@ -48,13 +48,20 @@ const ytDlpExe = (() => {
   if (process.platform !== 'win32') return null
   try { return execSync('where yt-dlp', { encoding: 'utf8' }).trim().split(/\r?\n/)[0] } catch { return null }
 })()
+const nodeDir = (() => {
+  try { return path.dirname(execSync('where node', { encoding: 'utf8' }).trim().split(/\r?\n/)[0]) } catch { return null }
+})()
 const usePyWrapper = process.platform === 'win32' && require('fs').existsSync(runPyPath)
 const ytDlpBin = usePyWrapper ? 'python' : 'yt-dlp'
 const ytDlpArgs = usePyWrapper ? [runPyPath, ytDlpExe || 'yt-dlp'] : []
 console.log('ytDlpBin:', ytDlpBin, 'ytDlpArgs:', ytDlpArgs)
+console.log('nodeDir:', nodeDir)
 
 const queue = new Map()
 const activeProcesses = new Map()
+
+const ytDlpEnv = { ...process.env }
+if (nodeDir) ytDlpEnv.PATH = nodeDir + ';' + (ytDlpEnv.PATH || '')
 
 function getQueue(guildId) {
   if (!queue.has(guildId)) {
@@ -66,7 +73,7 @@ function getQueue(guildId) {
 async function getYtInfo(url) {
   const args = ['--extractor-args', 'youtube:player_client=mweb', '--print-json', '--no-warnings']
   if (require('fs').existsSync(cookiesPath)) args.push('--cookies', cookiesPath)
-  const spawnOpts = { env: { ...process.env, PATH: process.env.PATH } }
+  const spawnOpts = { env: ytDlpEnv }
   return new Promise((resolve, reject) => {
     const proc = spawn(ytDlpBin, [...ytDlpArgs, ...args, url], spawnOpts)
     let stdout = ''
@@ -123,8 +130,8 @@ async function playSong(guildId, retries = 3) {
       }
     }
 
-    const streamArgs = ['-o', '-', '--extractor-args', 'youtube:player_client=mweb', '--cookies', cookiesPath]
-    const ytdlp = spawn(ytDlpBin, [...ytDlpArgs, ...streamArgs, song.url])
+    const streamArgs = ['-f', 'ba', '-o', '-', '--extractor-args', 'youtube:player_client=web_creator', '--remote-components', 'ejs:github', '--cookies', cookiesPath]
+    const ytdlp = spawn(ytDlpBin, [...ytDlpArgs, ...streamArgs, song.url], { env: ytDlpEnv })
 
     activeProcesses.set(guildId, ytdlp)
 
