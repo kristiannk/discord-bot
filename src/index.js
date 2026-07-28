@@ -145,7 +145,7 @@ async function playSong(guildId, retries = 3) {
 
     ytdlp.stderr.on('data', (d) => {
       const msg = d.toString()
-      if (msg.includes('ERROR') || msg.includes('error')) console.error('yt-dlp:', msg.trim())
+      console.log('yt-dlp stderr:', msg.trim())
     })
 
     ytdlp.on('error', (err) => {
@@ -155,6 +155,7 @@ async function playSong(guildId, retries = 3) {
     })
 
     ytdlp.on('close', code => {
+      console.log('yt-dlp closed with code:', code)
       if (code !== 0 && code !== null) {
         console.error(`yt-dlp exited with code ${code}`)
         try { fs.unlinkSync(tmpFile) } catch {}
@@ -163,11 +164,22 @@ async function playSong(guildId, retries = 3) {
         return
       }
 
-      console.log('Download complete, starting playback')
+      let fileSize = 0
+      try {
+        const stat = fs.statSync(tmpFile)
+        fileSize = stat.size
+      } catch (e) { console.error('stat error:', e.message) }
+      console.log('Download complete, file size:', fileSize, 'bytes')
+
+      if (fileSize === 0) {
+        console.error('File is empty!')
+        q.songs.shift()
+        playSong(guildId)
+        return
+      }
+
+      console.log('Starting ffmpeg from file:', tmpFile)
       const ffmpeg = spawn(ffmpegPath, [
-        '-reconnect', '1',
-        '-reconnect_streamed', '1',
-        '-reconnect_delay_max', '5',
         '-i', tmpFile,
         '-af', 'bass=g=5,aresample=48000',
         '-f', 'opus',
@@ -176,14 +188,19 @@ async function playSong(guildId, retries = 3) {
         'pipe:1',
       ])
 
-      ffmpeg.stdout.on('error', () => {})
+      ffmpeg.stderr.on('data', (d) => {
+        console.log('ffmpeg stderr:', d.toString().trim())
+      })
       ffmpeg.on('error', (err) => console.error('FFmpeg error:', err.message))
-      ffmpeg.on('close', () => {
+      ffmpeg.on('close', (code) => {
+        console.log('ffmpeg closed with code:', code)
         try { fs.unlinkSync(tmpFile) } catch {}
       })
 
       const resource = createAudioResource(ffmpeg.stdout, { inputType: 'opus' })
       q.player.play(resource)
+      q.player.on('error', (err) => console.error('Player error:', err.message))
+      q.player.on('stateChange', (oldS, newS) => console.log('Player state:', oldS.status, '->', newS.status))
 
     })
   } catch (err) {
