@@ -61,7 +61,7 @@ async function getYtInfo(url) {
   const args = ['--extractor-args', 'youtube:player_client=web_creator', '--print-json', '--no-warnings', '--remote-components', 'ejs:github']
   if (require('fs').existsSync(cookiesPath)) args.push('--cookies', cookiesPath)
   return new Promise((resolve, reject) => {
-    const proc = spawn(ytDlpBin, [...args, url])
+    const proc = spawn(ytDlpBin, [...args, url], { shell: true })
     let stdout = ''
     let stderr = ''
     proc.stdout.on('data', d => { stdout += d })
@@ -118,7 +118,7 @@ async function playSong(guildId, retries = 3) {
 
     const streamArgs = ['-f', 'bestaudio', '-o', '-', '--no-warnings', '--extractor-args', 'youtube:player_client=web_creator', '--remote-components', 'ejs:github']
     if (require('fs').existsSync(cookiesPath)) streamArgs.push('--cookies', cookiesPath)
-    const ytdlp = spawn(ytDlpBin, [...streamArgs, song.url])
+    const ytdlp = spawn(ytDlpBin, [...streamArgs, song.url], { shell: true })
 
     activeProcesses.set(guildId, ytdlp)
 
