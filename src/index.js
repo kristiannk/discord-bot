@@ -67,10 +67,11 @@ function getQueue(guildId) {
 }
 
 async function getYtInfo(url) {
-  const args = ['--extractor-args', 'youtube:player_client=web_creator', '--print-json', '--no-warnings', '--remote-components', 'ejs:github']
+  const args = ['--extractor-args', 'youtube:player_client=mweb', '--print-json', '--no-warnings']
   if (require('fs').existsSync(cookiesPath)) args.push('--cookies', cookiesPath)
+  const spawnOpts = { env: { ...process.env, PATH: process.env.PATH } }
   return new Promise((resolve, reject) => {
-    const proc = spawn(ytDlpBin, [...ytDlpArgs, ...args, url])
+    const proc = spawn(ytDlpBin, [...ytDlpArgs, ...args, url], spawnOpts)
     let stdout = ''
     let stderr = ''
     proc.stdout.on('data', d => { stdout += d })
@@ -125,7 +126,7 @@ async function playSong(guildId, retries = 3) {
       }
     }
 
-    const streamArgs = ['-f', 'ba', '-o', '-', '--no-warnings', '--extractor-args', 'youtube:player_client=web_creator', '--remote-components', 'ejs:github', '--cookies', cookiesPath]
+    const streamArgs = ['-f', 'ba', '-o', '-', '--extractor-args', 'youtube:player_client=web_creator', '--remote-components', 'ejs:github', '--cookies', cookiesPath, '--verbose']
     const ytdlp = spawn(ytDlpBin, [...ytDlpArgs, ...streamArgs, song.url])
 
     activeProcesses.set(guildId, ytdlp)
