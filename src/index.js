@@ -40,9 +40,8 @@ client.on('raw', packet => {
 
 const ffmpegPath = require('ffmpeg-static')
 
-const ytDlpBin = (() => {
-  return 'yt-dlp'
-})()
+const ytDlpBin = process.platform === 'win32' ? 'python' : 'yt-dlp'
+const ytDlpArgs = process.platform === 'win32' ? ['-m', 'yt_dlp'] : []
 
 const YT_API_KEY = process.env.YT_API_KEY
 const cookiesPath = path.join(__dirname, '..', 'cookies.txt')
@@ -61,7 +60,7 @@ async function getYtInfo(url) {
   const args = ['--extractor-args', 'youtube:player_client=web_creator', '--print-json', '--no-warnings', '--remote-components', 'ejs:github']
   if (require('fs').existsSync(cookiesPath)) args.push('--cookies', cookiesPath)
   return new Promise((resolve, reject) => {
-    const proc = spawn(ytDlpBin, [...args, url], { shell: true })
+    const proc = spawn(ytDlpBin, [...ytDlpArgs, ...args, url], { shell: true })
     let stdout = ''
     let stderr = ''
     proc.stdout.on('data', d => { stdout += d })
@@ -116,9 +115,8 @@ async function playSong(guildId, retries = 3) {
       }
     }
 
-    const streamArgs = ['-f', 'bestaudio', '-o', '-', '--no-warnings', '--extractor-args', 'youtube:player_client=web_creator', '--remote-components', 'ejs:github']
-    if (require('fs').existsSync(cookiesPath)) streamArgs.push('--cookies', cookiesPath)
-    const ytdlp = spawn(ytDlpBin, [...streamArgs, song.url], { shell: true })
+    const streamArgs = ['-f', 'bestaudio[ext=m4a]/bestaudio/ba', '-o', '-', '--no-warnings', '--extractor-args', 'youtube:player_client=web_creator', '--remote-components', 'ejs:github', '--cookies', cookiesPath]
+    const ytdlp = spawn(ytDlpBin, [...ytDlpArgs, ...streamArgs, song.url], { shell: true })
 
     activeProcesses.set(guildId, ytdlp)
 
