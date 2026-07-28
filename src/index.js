@@ -1,6 +1,6 @@
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require('discord.js')
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState } = require('@discordjs/voice')
-const { spawn } = require('child_process')
+const { spawn, execSync } = require('child_process')
 const path = require('path')
 const play = require('play-dl')
 require('dotenv').config()
@@ -40,11 +40,21 @@ client.on('raw', packet => {
 
 const ffmpegPath = require('ffmpeg-static')
 
-const ytDlpBin = process.platform === 'win32' ? 'python' : 'yt-dlp'
-const ytDlpArgs = process.platform === 'win32' ? ['-m', 'yt_dlp'] : []
-
 const YT_API_KEY = process.env.YT_API_KEY
 const cookiesPath = path.join(__dirname, '..', 'cookies.txt')
+
+const ytDlpBin = (() => {
+  if (process.platform === 'win32') {
+    try {
+      const result = execSync('where yt-dlp', { encoding: 'utf8' }).trim().split(/\r?\n/)[0]
+      if (result) return result
+    } catch {}
+    return 'python'
+  }
+  return 'yt-dlp'
+})()
+const ytDlpArgs = process.platform === 'win32' && ytDlpBin.includes('python') ? ['-m', 'yt_dlp'] : []
+console.log('ytDlpBin:', ytDlpBin, 'ytDlpArgs:', ytDlpArgs)
 
 const queue = new Map()
 const activeProcesses = new Map()
@@ -60,7 +70,7 @@ async function getYtInfo(url) {
   const args = ['--extractor-args', 'youtube:player_client=web_creator', '--print-json', '--no-warnings', '--remote-components', 'ejs:github']
   if (require('fs').existsSync(cookiesPath)) args.push('--cookies', cookiesPath)
   return new Promise((resolve, reject) => {
-    const proc = spawn(ytDlpBin, [...ytDlpArgs, ...args, url], { shell: true })
+    const proc = spawn(ytDlpBin, [...ytDlpArgs, ...args, url])
     let stdout = ''
     let stderr = ''
     proc.stdout.on('data', d => { stdout += d })
@@ -115,8 +125,8 @@ async function playSong(guildId, retries = 3) {
       }
     }
 
-    const streamArgs = ['-f', 'bestaudio[ext=m4a]/bestaudio/ba', '-o', '-', '--no-warnings', '--extractor-args', 'youtube:player_client=web_creator', '--remote-components', 'ejs:github', '--cookies', cookiesPath]
-    const ytdlp = spawn(ytDlpBin, [...ytDlpArgs, ...streamArgs, song.url], { shell: true })
+    const streamArgs = ['-o', '-', '--no-warnings', '--extractor-args', 'youtube:player_client=web_creator', '--remote-components', 'ejs:github', '--cookies', cookiesPath]
+    const ytdlp = spawn(ytDlpBin, [...ytDlpArgs, ...streamArgs, song.url])
 
     activeProcesses.set(guildId, ytdlp)
 
