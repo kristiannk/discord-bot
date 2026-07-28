@@ -181,7 +181,7 @@ async function playSong(guildId, retries = 3) {
       console.log('Starting ffmpeg from file:', tmpFile)
       const ffmpeg = spawn(ffmpegPath, [
         '-i', tmpFile,
-        '-af', 'bass=g=5,aresample=48000',
+        '-af', 'aresample=48000',
         '-f', 'opus',
         '-ar', '48000',
         '-ac', '2',
@@ -197,7 +197,7 @@ async function playSong(guildId, retries = 3) {
         try { fs.unlinkSync(tmpFile) } catch {}
       })
 
-      const resource = createAudioResource(ffmpeg.stdout, { inputType: 'opus' })
+      const resource = createAudioResource(ffmpeg.stdout, { inputType: 'ogg/opus' })
       q.player.play(resource)
       q.player.on('error', (err) => console.error('Player error:', err.message))
       q.player.on('stateChange', (oldS, newS) => console.log('Player state:', oldS.status, '->', newS.status))
