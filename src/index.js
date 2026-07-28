@@ -54,7 +54,7 @@ const ytDlpBin = (() => {
   return 'yt-dlp'
 })()
 const ytDlpArgs = process.platform === 'win32' && ytDlpBin.includes('python') ? ['-m', 'yt_dlp'] : []
-console.log('ytDlpBin:', ytDlpBin, 'ytDlpArgs:', ytDlpArgs)
+console.log('ytDlpBin:', ytDlpBin)
 
 const queue = new Map()
 const activeProcesses = new Map()
@@ -125,7 +125,7 @@ async function playSong(guildId, retries = 3) {
       }
     }
 
-    const streamArgs = ['-o', '-', '--no-warnings', '--extractor-args', 'youtube:player_client=web_creator', '--remote-components', 'ejs:github', '--cookies', cookiesPath]
+    const streamArgs = ['-f', 'ba', '-o', '-', '--no-warnings', '--extractor-args', 'youtube:player_client=web_creator', '--remote-components', 'ejs:github', '--cookies', cookiesPath]
     const ytdlp = spawn(ytDlpBin, [...ytDlpArgs, ...streamArgs, song.url])
 
     activeProcesses.set(guildId, ytdlp)
@@ -143,6 +143,8 @@ async function playSong(guildId, retries = 3) {
     ])
 
     ytdlp.stdout.pipe(ffmpeg.stdin)
+    ffmpeg.stdin.on('error', () => {})
+    ffmpeg.stdout.on('error', () => {})
     ffmpeg.on('error', (err) => console.error('FFmpeg error:', err.message))
     ytdlp.stderr.on('data', (d) => {
       const msg = d.toString()
