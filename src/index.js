@@ -133,36 +133,23 @@ async function playSong(guildId, retries = 3) {
       }
     }
 
-    const streamArgs = ['-f', '18', '-o', '-', '--extractor-args', 'youtube:player_client=mweb', '--cookies', cookiesPath]
-    const ytdlp = spawn(ytDlpBin, [...ytDlpArgs, ...streamArgs, song.url], { env: ytDlpEnv })
+    const os = require('os')
+    const fs = require('fs')
+    const tmpFile = path.join(os.tmpdir(), `ytdlp-${guildId}-${Date.now()}.mp4`)
+
+    const dlArgs = ['-f', '18', '-o', tmpFile, '--extractor-args', 'youtube:player_client=mweb', '--cookies', cookiesPath, '--no-warnings']
+    console.log('Downloading to temp file:', tmpFile)
+    const ytdlp = spawn(ytDlpBin, [...ytDlpArgs, ...dlArgs, song.url], { env: ytDlpEnv })
 
     activeProcesses.set(guildId, ytdlp)
 
-    const ffmpeg = spawn(ffmpegPath, [
-      '-reconnect', '1',
-      '-reconnect_streamed', '1',
-      '-reconnect_delay_max', '5',
-      '-i', 'pipe:0',
-      '-af', 'bass=g=5,aresample=48000',
-      '-f', 'opus',
-      '-ar', '48000',
-      '-ac', '2',
-      'pipe:1',
-    ])
-
-    ytdlp.stdout.pipe(ffmpeg.stdin)
-    ffmpeg.stdin.on('error', () => {})
-    ffmpeg.stdout.on('error', () => {})
-    ffmpeg.on('error', (err) => console.error('FFmpeg error:', err.message))
     ytdlp.stderr.on('data', (d) => {
       const msg = d.toString()
       if (msg.includes('ERROR') || msg.includes('error')) console.error('yt-dlp:', msg.trim())
     })
 
-    const resource = createAudioResource(ffmpeg.stdout, { inputType: 'opus' })
-    q.player.play(resource)
-
-    ytdlp.on('error', () => {
+    ytdlp.on('error', (err) => {
+      console.error('yt-dlp spawn error:', err.message)
       q.songs.shift()
       playSong(guildId)
     })
@@ -170,7 +157,34 @@ async function playSong(guildId, retries = 3) {
     ytdlp.on('close', code => {
       if (code !== 0 && code !== null) {
         console.error(`yt-dlp exited with code ${code}`)
+        try { fs.unlinkSync(tmpFile) } catch {}
+        q.songs.shift()
+        playSong(guildId)
+        return
       }
+
+      console.log('Download complete, starting playback')
+      const ffmpeg = spawn(ffmpegPath, [
+        '-reconnect', '1',
+        '-reconnect_streamed', '1',
+        '-reconnect_delay_max', '5',
+        '-i', tmpFile,
+        '-af', 'bass=g=5,aresample=48000',
+        '-f', 'opus',
+        '-ar', '48000',
+        '-ac', '2',
+        'pipe:1',
+      ])
+
+      ffmpeg.stdout.on('error', () => {})
+      ffmpeg.on('error', (err) => console.error('FFmpeg error:', err.message))
+      ffmpeg.on('close', () => {
+        try { fs.unlinkSync(tmpFile) } catch {}
+      })
+
+      const resource = createAudioResource(ffmpeg.stdout, { inputType: 'opus' })
+      q.player.play(resource)
+
     })
   } catch (err) {
     console.error('Error playing song:', err)
