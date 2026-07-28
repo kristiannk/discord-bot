@@ -133,7 +133,7 @@ async function playSong(guildId, retries = 3) {
       }
     }
 
-    const streamArgs = ['-f', 'ba', '-o', '-', '--extractor-args', 'youtube:player_client=web_creator', '--remote-components', 'ejs:github', '--cookies', cookiesPath]
+    const streamArgs = ['-f', '18', '-o', '-', '--extractor-args', 'youtube:player_client=mweb', '--cookies', cookiesPath]
     const ytdlp = spawn(ytDlpBin, [...ytDlpArgs, ...streamArgs, song.url], { env: ytDlpEnv })
 
     activeProcesses.set(guildId, ytdlp)
