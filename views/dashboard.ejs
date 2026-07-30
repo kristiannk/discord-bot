@@ -59,7 +59,7 @@ input[type="color"] { height: 40px; padding: 4px; }
 </div>
 
 <div class="container">
-  <% if (guildIds.length === 0) { %>
+  <% if (guilds.length === 0) { %>
     <div class="card">
       <h2>No servers configured</h2>
       <p style="color:#888;margin-bottom:16px;">Invite the bot to a server and use <code>/setchannel</code> to set the announcement channel.</p>
@@ -72,8 +72,8 @@ input[type="color"] { height: 40px; padding: 4px; }
       <div class="form-group">
         <label>Server</label>
         <select name="guildId" required>
-          <% guildIds.forEach(id => { %>
-            <option value="<%= id %>"><%= id %></option>
+          <% guilds.forEach(g => { %>
+            <option value="<%= g.id %>"><%= g.name %></option>
           <% }) %>
         </select>
       </div>

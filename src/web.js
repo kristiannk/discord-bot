@@ -66,8 +66,11 @@ app.get('/logout', (req, res) => {
 
 app.get('/', isAuthenticated, (req, res) => {
   const cfg = loadConfig()
-  const guildIds = Object.keys(cfg.guilds)
-  res.render('dashboard', { user: req.session.user, guildIds, base: BASE })
+  const guilds = Object.keys(cfg.guilds).map(id => {
+    const guild = req.app.locals.client.guilds.cache.get(id)
+    return { id, name: guild ? guild.name : id }
+  })
+  res.render('dashboard', { user: req.session.user, guilds, base: BASE })
 })
 
 app.post('/api/announce', isAuthenticated, async (req, res) => {
