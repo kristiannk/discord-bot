@@ -4,73 +4,120 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Announcement Bot</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
-.header { background: #16213e; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #2a2a4a; }
-.header h1 { font-size: 20px; }
-.header .user { display: flex; align-items: center; gap: 10px; }
-.header .user img { width: 32px; height: 32px; border-radius: 50%; }
-.header .user a { color: #888; text-decoration: none; font-size: 14px; }
-.container { max-width: 720px; margin: 32px auto; padding: 0 16px; }
-.card { background: #16213e; border-radius: 12px; padding: 32px; margin-bottom: 24px; }
-.card h2 { margin-bottom: 20px; font-size: 18px; }
-.form-group { margin-bottom: 16px; }
-.form-group label { display: block; margin-bottom: 6px; font-size: 14px; color: #aaa; }
-.form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px 12px; background: #0f3460; border: 1px solid #2a2a4a; border-radius: 6px; color: #eee; font-size: 14px; }
-.form-group textarea { resize: vertical; min-height: 80px; font-family: inherit; }
-.form-row { display: flex; gap: 12px; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+.header { background: linear-gradient(135deg, #161b22 0%, #0d1117 100%); padding: 0 32px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #30363d; height: 64px; position: sticky; top: 0; z-index: 100; backdrop-filter: blur(12px); }
+.header h1 { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+.header h1 i { color: #5865F2; }
+.header .user { display: flex; align-items: center; gap: 12px; }
+.header .user img { width: 34px; height: 34px; border-radius: 50%; border: 2px solid #30363d; }
+.header .user .uname { font-size: 14px; font-weight: 500; }
+.header .user a { color: #8b949e; text-decoration: none; font-size: 13px; transition: color 0.2s; }
+.header .user a:hover { color: #f85149; }
+
+.container { max-width: 800px; margin: 32px auto; padding: 0 20px; animation: fadeUp 0.4s ease; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+.card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 28px; margin-bottom: 24px; box-shadow: 0 4px 24px rgba(0,0,0,0.2); transition: border-color 0.2s; }
+.card:hover { border-color: #484f58; }
+.card h2 { font-size: 18px; font-weight: 600; margin-bottom: 24px; display: flex; align-items: center; gap: 8px; }
+.card h2 i { color: #5865F2; }
+
+.form-group { margin-bottom: 18px; }
+.form-group label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; }
+.form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px 14px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; color: #e6edf3; font-size: 14px; transition: border-color 0.2s, box-shadow 0.2s; font-family: inherit; }
+.form-group input:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: #5865F2; box-shadow: 0 0 0 3px rgba(88,101,242,0.15); }
+.form-group textarea { resize: vertical; min-height: 80px; }
+.form-group select { cursor: pointer; }
+
+.form-row { display: flex; gap: 14px; }
 .form-row .form-group { flex: 1; }
-.field-group { background: #0f3460; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
-.field-group .form-row { gap: 8px; }
-.field-group .form-row .form-group { flex: 1; }
-.field-group .form-group { margin-bottom: 8px; }
-.field-group label { font-size: 12px; }
-.btn-remove { background: #da373c; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; }
-.btn-add { background: #2a2a4a; color: #eee; border: 1px solid #3a3a5a; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; margin-top: 8px; }
-.btn-submit { background: #5865F2; color: #fff; border: none; padding: 12px 32px; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600; width: 100%; }
-.btn-submit:hover { background: #4752c4; }
-#preview { background: #0f3460; border-radius: 8px; padding: 16px; margin-top: 16px; border-left: 4px solid #5865F2; }
-#preview h3 { margin-bottom: 8px; }
-#preview p { color: #ccc; font-size: 14px; line-height: 1.5; }
-#preview .footer { color: #888; font-size: 12px; margin-top: 8px; }
-#preview .fields { margin-top: 12px; }
-#preview .field { margin-bottom: 8px; }
-#preview .field strong { font-size: 13px; }
-#preview .field span { font-size: 13px; color: #ccc; }
-.alert { padding: 12px; border-radius: 6px; margin-bottom: 16px; font-size: 14px; }
-.alert-success { background: #1a4a2e; color: #6fcf97; }
-.alert-error { background: #4a1a1a; color: #cf6f6f; }
-input[type="color"] { height: 40px; padding: 4px; }
+
+.field-group { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 14px; margin-bottom: 10px; }
+.field-group .form-row { gap: 8px; align-items: end; }
+.field-group .form-row .form-group { margin-bottom: 0; }
+.field-group label { font-size: 11px; }
+.field-group .btn-remove { margin-bottom: 4px; }
+
+.btn-remove { background: #21262d; color: #f85149; border: 1px solid #30363d; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.2s; display: flex; align-items: center; gap: 4px; }
+.btn-remove:hover { background: #f85149; color: #fff; border-color: #f85149; }
+.btn-add { background: #21262d; color: #58a6ff; border: 1px dashed #30363d; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 13px; margin-top: 6px; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; width: 100%; justify-content: center; }
+.btn-add:hover { background: #1c2128; border-color: #58a6ff; }
+
+.btn-submit { background: linear-gradient(135deg, #5865F2, #4752c4); color: #fff; border: none; padding: 14px 32px; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600; width: 100%; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.btn-submit:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(88,101,242,0.3); }
+.btn-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+
+#preview { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 20px; margin-top: 20px; border-left: 4px solid #5865F2; position: relative; }
+#preview .label { position: absolute; top: -10px; left: 16px; background: #161b22; padding: 0 8px; font-size: 11px; font-weight: 600; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; }
+#preview #previewTitle { font-size: 18px; font-weight: 700; margin-bottom: 6px; color: #e6edf3; }
+#preview #previewDesc { font-size: 14px; line-height: 1.5; color: #c9d1d9; margin-bottom: 8px; }
+#preview #previewImage { max-width: 100%; border-radius: 4px; margin-top: 12px; display: none; }
+#preview #previewThumb { float: right; max-width: 80px; border-radius: 4px; margin-left: 12px; display: none; }
+#preview .footer { color: #8b949e; font-size: 12px; margin-top: 8px; }
+#preview .fields { margin-top: 12px; clear: right; }
+#preview .field { margin-bottom: 8px; display: flex; gap: 8px; }
+#preview .field strong { font-size: 14px; color: #e6edf3; white-space: nowrap; }
+#preview .field span { font-size: 14px; color: #c9d1d9; }
+#preview .field.inline { display: inline-flex; margin-right: 24px; }
+
+.alert { padding: 14px 18px; border-radius: 8px; margin-top: 16px; font-size: 14px; display: flex; align-items: center; gap: 10px; animation: fadeUp 0.3s ease; }
+.alert-success { background: #1c2d1f; color: #7ee787; border: 1px solid #2ea043; }
+.alert-error { background: #2d1c1c; color: #ff7b72; border: 1px solid #da3633; }
+.alert i { font-size: 18px; }
+
+input[type="color"] { height: 42px; padding: 4px; cursor: pointer; }
+input[type="checkbox"] { accent-color: #5865F2; }
+.empty-state { text-align: center; padding: 48px 20px; }
+.empty-state i { font-size: 48px; color: #30363d; margin-bottom: 16px; }
+.empty-state h3 { font-size: 18px; margin-bottom: 8px; }
+.empty-state p { color: #8b949e; font-size: 14px; line-height: 1.6; }
+.empty-state code { background: #21262d; padding: 2px 8px; border-radius: 4px; font-size: 13px; }
+
+@media (max-width: 600px) {
+  .header { padding: 0 16px; }
+  .header .user .uname { display: none; }
+  .container { padding: 0 12px; margin: 16px auto; }
+  .card { padding: 20px; }
+  .form-row { flex-direction: column; gap: 0; }
+  .field-group .form-row { flex-direction: column; gap: 8px; }
+}
 </style>
 </head>
 <body>
 <div class="header">
-  <h1>Announcement Bot</h1>
+  <h1><i class="fab fa-discord"></i> Announcement Bot</h1>
   <div class="user">
     <% if (user.avatar) { %>
       <img src="https://cdn.discordapp.com/avatars/<%= user.id %>/<%= user.avatar %>.png" alt="">
     <% } else { %>
       <img src="https://cdn.discordapp.com/embed/avatars/0.png" alt="">
     <% } %>
-    <span><%= user.globalName || user.username %></span>
-    <a href="/logout">Logout</a>
+    <span class="uname"><%= user.globalName || user.username %></span>
+    <a href="/logout"><i class="fas fa-sign-out-alt"></i></a>
   </div>
 </div>
 
 <div class="container">
   <% if (guilds.length === 0) { %>
     <div class="card">
-      <h2>No servers configured</h2>
-      <p style="color:#888;margin-bottom:16px;">Invite the bot to a server and use <code>/setchannel</code> to set the announcement channel.</p>
+      <div class="empty-state">
+        <i class="fas fa-server"></i>
+        <h3>No servers configured</h3>
+        <p>Invite the bot to a server and use <code>/setchannel</code> in Discord<br>to set the announcement channel.</p>
+      </div>
     </div>
   <% } else { %>
 
   <div class="card">
-    <h2>New Announcement</h2>
+    <h2><i class="fas fa-bullhorn"></i> New Announcement</h2>
     <form id="announceForm">
       <div class="form-group">
-        <label>Server</label>
+        <label><i class="fas fa-server"></i> Server</label>
         <select name="guildId" required>
           <% guilds.forEach(g => { %>
             <option value="<%= g.id %>"><%= g.name %></option>
@@ -78,52 +125,55 @@ input[type="color"] { height: 40px; padding: 4px; }
         </select>
       </div>
       <div class="form-group">
-        <label>Title *</label>
+        <label><i class="fas fa-heading"></i> Title *</label>
         <input type="text" name="title" required oninput="updatePreview()">
       </div>
       <div class="form-group">
-        <label>Description *</label>
+        <label><i class="fas fa-align-left"></i> Description *</label>
         <textarea name="description" required oninput="updatePreview()"></textarea>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Color</label>
+          <label><i class="fas fa-palette"></i> Color</label>
           <input type="color" name="color" value="#5865F2" oninput="updatePreview()">
         </div>
         <div class="form-group">
-          <label>Image URL</label>
+          <label><i class="fas fa-image"></i> Image URL</label>
           <input type="url" name="image" placeholder="https://..." oninput="updatePreview()">
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Thumbnail URL</label>
+          <label><i class="fas fa-camera"></i> Thumbnail URL</label>
           <input type="url" name="thumbnail" placeholder="https://..." oninput="updatePreview()">
         </div>
         <div class="form-group">
-          <label>Footer</label>
+          <label><i class="fas fa-grip-lines"></i> Footer</label>
           <input type="text" name="footer" placeholder="Footer text" oninput="updatePreview()">
         </div>
       </div>
       <div class="form-group">
-        <label>
-          <input type="checkbox" name="timestamp" value="true" onchange="updatePreview()">
-          Add timestamp
+        <label style="flex-direction:row;display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;">
+          <input type="checkbox" name="timestamp" value="true" onchange="updatePreview()" checked>
+          <i class="fas fa-clock"></i> Add timestamp
         </label>
       </div>
 
-      <label style="display:block;margin-bottom:8px;font-size:14px;color:#aaa;">Fields</label>
+      <label style="display:block;margin-bottom:10px;font-size:13px;font-weight:500;color:#8b949e;text-transform:uppercase;letter-spacing:0.5px;"><i class="fas fa-list"></i> Fields</label>
       <div id="fieldsContainer"></div>
-      <button type="button" class="btn-add" onclick="addField()">+ Add Field</button>
+      <button type="button" class="btn-add" onclick="addField()"><i class="fas fa-plus"></i> Add Field</button>
 
       <div id="preview">
+        <div class="label"><i class="fas fa-eye"></i> Preview</div>
+        <img id="previewThumb" src="" alt="">
         <h3 id="previewTitle">Title</h3>
         <p id="previewDesc">Description</p>
+        <img id="previewImage" src="" alt="">
         <div id="previewFields" class="fields"></div>
         <div id="previewFooter" class="footer"></div>
       </div>
 
-      <button type="submit" class="btn-submit" style="margin-top:20px">Send Announcement</button>
+      <button type="submit" class="btn-submit" style="margin-top:20px"><i class="fas fa-paper-plane"></i> Send Announcement</button>
     </form>
     <div id="result"></div>
   </div>
@@ -137,15 +187,7 @@ function addField(name, value, inline) {
   const div = document.createElement('div')
   div.className = 'field-group'
   div.id = 'field-' + fieldCount
-  div.innerHTML = `
-    <div class="form-row">
-      <div class="form-group"><input type="text" name="fieldName" placeholder="Field name" value="${name || ''}" oninput="updatePreview()"></div>
-      <div class="form-group"><input type="text" name="fieldValue" placeholder="Field value" value="${value || ''}" oninput="updatePreview()"></div>
-      <div style="display:flex;align-items:center;gap:4px;padding-top:6px">
-        <label style="font-size:12px;white-space:nowrap"><input type="checkbox" name="fieldInline" ${inline ? 'checked' : ''} onchange="updatePreview()"> Inline</label>
-        <button type="button" class="btn-remove" onclick="removeField(${fieldCount})">✕</button>
-      </div>
-    </div>`
+  div.innerHTML = '<div class="form-row"><div class="form-group"><label>Name</label><input type="text" name="fieldName" placeholder="Field name" value="' + (name||'') + '" oninput="updatePreview()"></div><div class="form-group"><label>Value</label><input type="text" name="fieldValue" placeholder="Field value" value="' + (value||'') + '" oninput="updatePreview()"></div><div style="display:flex;align-items:end;gap:4px;padding-bottom:4px"><label style="display:flex;align-items:center;gap:4px;text-transform:none;letter-spacing:0;font-size:12px;white-space:nowrap"><input type="checkbox" name="fieldInline" ' + (inline ? 'checked' : '') + ' onchange="updatePreview()"> Inline</label><button type="button" class="btn-remove" onclick="removeField(' + fieldCount + ')"><i class="fas fa-trash-alt"></i></button></div></div>'
   document.getElementById('fieldsContainer').appendChild(div)
 }
 
@@ -167,33 +209,47 @@ function updatePreview() {
   const title = document.querySelector('[name="title"]').value || 'Title'
   const desc = document.querySelector('[name="description"]').value || 'Description'
   const color = document.querySelector('[name="color"]').value
+  const image = document.querySelector('[name="image"]').value
+  const thumb = document.querySelector('[name="thumbnail"]').value
   const footer = document.querySelector('[name="footer"]').value
   const timestamp = document.querySelector('[name="timestamp"]').checked
   const fields = getFields()
 
   document.getElementById('preview').style.borderLeftColor = color
   document.getElementById('previewTitle').textContent = title
-  document.getElementById('previewDesc').textContent = desc
-  document.getElementById('previewFooter').textContent = (footer ? footer : '') + (timestamp ? (footer ? ' • ' : '') + new Date().toLocaleString() : '')
+
+  const descEl = document.getElementById('previewDesc')
+  descEl.textContent = desc
+
+  const imgEl = document.getElementById('previewImage')
+  if (image) { imgEl.src = image; imgEl.style.display = 'block' } else { imgEl.style.display = 'none' }
+
+  const thumbEl = document.getElementById('previewThumb')
+  if (thumb) { thumbEl.src = thumb; thumbEl.style.display = 'block' } else { thumbEl.style.display = 'none' }
+
+  const ts = timestamp ? ' • ' + new Date().toLocaleString('id-ID', { day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit' }) : ''
+  document.getElementById('previewFooter').textContent = (footer ? footer : '') + ts
 
   const fieldsDiv = document.getElementById('previewFields')
-  fieldsDiv.innerHTML = fields.map(f => `<div class="field"><strong>${f.name}</strong> <span>${f.value}</span></div>`).join('')
+  fieldsDiv.innerHTML = fields.map(f => '<div class="field' + (f.inline ? ' inline' : '') + '"><strong>' + escapeHtml(f.name) + '</strong> <span>' + escapeHtml(f.value) + '</span></div>').join('')
 }
+
+function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML }
 
 document.getElementById('announceForm')?.addEventListener('submit', async (e) => {
   e.preventDefault()
   const fd = new FormData(e.target)
   const data = { guildId: fd.get('guildId'), title: fd.get('title'), description: fd.get('description'), color: fd.get('color'), image: fd.get('image'), thumbnail: fd.get('thumbnail'), footer: fd.get('footer'), timestamp: fd.get('timestamp') === 'true', fields: getFields() }
   const btn = e.target.querySelector('.btn-submit')
-  btn.disabled = true; btn.textContent = 'Sending...'
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...'
   try {
     const res = await fetch('/api/announce', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
     const text = await res.text()
-    document.getElementById('result').innerHTML = res.ok ? '<div class="alert alert-success">' + text + '</div>' : '<div class="alert alert-error">' + text + '</div>'
+    document.getElementById('result').innerHTML = res.ok ? '<div class="alert alert-success"><i class="fas fa-check-circle"></i> ' + text + '</div>' : '<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> ' + text + '</div>'
   } catch (err) {
-    document.getElementById('result').innerHTML = '<div class="alert alert-error">' + err.message + '</div>'
+    document.getElementById('result').innerHTML = '<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> ' + err.message + '</div>'
   }
-  btn.disabled = false; btn.textContent = 'Send Announcement'
+  btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Announcement'
 })
 </script>
 </body>
