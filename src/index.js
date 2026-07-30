@@ -221,7 +221,21 @@ const commands = [
   new SlashCommandBuilder().setName('stop').setDescription('Berhenti dan keluar dari voice channel'),
   new SlashCommandBuilder().setName('queue').setDescription('Lihat antrian lagu'),
   new SlashCommandBuilder().setName('nowplaying').setDescription('Lagu yang sedang diputar'),
+  new SlashCommandBuilder()
+    .setName('setchannel')
+    .setDescription('Set channel untuk announcement')
+    .addChannelOption(opt => opt.setName('channel').setDescription('Pilih channel').setRequired(true)),
 ].map(cmd => cmd.toJSON())
+
+const fs_cmd = require('fs')
+const configPath = require('path').join(__dirname, '..', 'data', 'config.json')
+function loadConfig() {
+  try { return JSON.parse(fs_cmd.readFileSync(configPath, 'utf8')) } catch { return { guilds: {} } }
+}
+function saveConfig(cfg) {
+  require('fs').mkdirSync(require('path').dirname(configPath), { recursive: true })
+  require('fs').writeFileSync(configPath, JSON.stringify(cfg, null, 2))
+}
 
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return
@@ -414,6 +428,15 @@ client.on('interactionCreate', async interaction => {
 
     return interaction.reply({ embeds: [embed] })
   }
+
+  if (commandName === 'setchannel') {
+    const channel = interaction.options.getChannel('channel')
+    const cfg = loadConfig()
+    if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {}
+    cfg.guilds[guildId].channelId = channel.id
+    saveConfig(cfg)
+    return interaction.reply({ content: `Channel announcement diset ke <#${channel.id}>`, ephemeral: true })
+  }
 })
 
 function formatDuration(seconds) {
@@ -451,6 +474,8 @@ client.once('clientReady', async () => {
   } catch (e) {
     console.error('Gagal register slash command:', e)
   }
+  const { start: startWeb } = require('./web')
+  startWeb(client).catch(err => console.error('Web server error:', err))
 })
 
 client.login(process.env.DISCORD_TOKEN)
