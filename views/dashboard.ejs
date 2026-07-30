@@ -71,6 +71,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 .alert i { font-size: 18px; }
 
 input[type="checkbox"] { accent-color: #5865F2; }
+input[type="color"] { height: 42px; padding: 4px; cursor: pointer; }
 .empty-state { text-align: center; padding: 48px 20px; }
 .empty-state i { font-size: 48px; color: #30363d; margin-bottom: 16px; }
 .empty-state h3 { font-size: 18px; margin-bottom: 8px; }
@@ -134,12 +135,7 @@ input[type="checkbox"] { accent-color: #5865F2; }
       <div class="form-row">
         <div class="form-group">
           <label><i class="fas fa-palette"></i> Color</label>
-          <div style="display:flex;align-items:center;gap:12px;height:42px;">
-            <div id="colorDot" style="width:32px;height:32px;border-radius:50%;border:2px solid #30363d;transition:background 0.1s;"></div>
-            <span id="colorHex" style="font-size:13px;color:#8b949e;font-family:monospace;">#5865F2</span>
-            <span style="font-size:11px;color:#58a6ff;"><i class="fas fa-sync-alt"></i> auto-rainbow</span>
-          </div>
-          <input type="hidden" name="color" id="colorInput" value="#5865F2">
+          <input type="color" name="color" value="#5865F2" oninput="updatePreview()">
         </div>
         <div class="form-group">
           <label><i class="fas fa-image"></i> Image URL</label>
@@ -186,31 +182,6 @@ input[type="checkbox"] { accent-color: #5865F2; }
 
 <script>
 let fieldCount = 0
-let rainbowHue = 0
-
-function hslToHex(h, s, l) {
-  h /= 360; s /= 100; l /= 100
-  if (s === 0) { const g = Math.round(l*255); const hex = g.toString(16).padStart(2,'0'); return '#'+hex+hex+hex }
-  const hue2rgb = (p, q, t) => { if (t < 0) t += 1; if (t > 1) t -= 1; if (t < 1/6) return p + (q-p)*6*t; if (t < 1/2) return q; if (t < 2/3) return p + (q-p)*(2/3-t)*6; return p }
-  const q = l < 0.5 ? l*(1+s) : l+s - l*s
-  const p = 2*l - q
-  const toHex = x => Math.round(x*255).toString(16).padStart(2,'0')
-  return '#' + toHex(hue2rgb(p, q, h + 1/3)) + toHex(hue2rgb(p, q, h)) + toHex(hue2rgb(p, q, h - 1/3))
-}
-
-function getRainbowColor() { return hslToHex(rainbowHue, 85, 55) }
-
-function updateRainbow() {
-  rainbowHue = (rainbowHue + 2) % 360
-  const hex = getRainbowColor()
-  document.getElementById('colorDot').style.background = hex
-  document.getElementById('colorHex').textContent = hex.toUpperCase()
-  document.getElementById('colorInput').value = hex
-  const p = document.getElementById('preview')
-  if (p) p.style.borderLeftColor = hex
-}
-
-setInterval(updateRainbow, 50)
 
 function addField(name, value, inline) {
   fieldCount++
@@ -238,7 +209,7 @@ function getFields() {
 function updatePreview() {
   const title = document.querySelector('[name="title"]').value || 'Title'
   const desc = document.querySelector('[name="description"]').value || 'Description'
-  const color = getRainbowColor()
+  const color = document.querySelector('[name="color"]').value
   const image = document.querySelector('[name="image"]').value
   const thumb = document.querySelector('[name="thumbnail"]').value
   const footer = document.querySelector('[name="footer"]').value

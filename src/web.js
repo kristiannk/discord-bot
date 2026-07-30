@@ -9,16 +9,6 @@ const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET
 const PORT = process.env.WEB_PORT || 3001
 const BASE = `http://${process.env.VPS_IP || 'localhost'}:${PORT}`
 
-function hslToHex(h, s, l) {
-  h /= 360; s /= 100; l /= 100
-  if (s === 0) { const g = Math.round(l*255); const hex = g.toString(16).padStart(2,'0'); return '#'+hex+hex+hex }
-  const hue2rgb = (p, q, t) => { if (t < 0) t += 1; if (t > 1) t -= 1; if (t < 1/6) return p + (q-p)*6*t; if (t < 1/2) return q; if (t < 2/3) return p + (q-p)*(2/3-t)*6; return p }
-  const q = l < 0.5 ? l*(1+s) : l+s - l*s
-  const p = 2*l - q
-  const toHex = x => Math.round(x*255).toString(16).padStart(2,'0')
-  return '#' + toHex(hue2rgb(p, q, h + 1/3)) + toHex(hue2rgb(p, q, h)) + toHex(hue2rgb(p, q, h - 1/3))
-}
-
 function loadConfig() {
   try { return JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch { return { guilds: {} } }
 }
@@ -94,8 +84,7 @@ app.post('/api/announce', isAuthenticated, async (req, res) => {
     if (!channelId) {
       return res.status(400).send('No channel configured for this guild. Use /setchannel in Discord first.')
     }
-    const embedColor = color ? parseInt(color.replace('#', ''), 16) : parseInt(hslToHex((Date.now() / 50) % 360, 85, 55).replace('#', ''), 16)
-    const embed = { title, description, color: embedColor, timestamp: timestamp ? new Date().toISOString() : undefined }
+    const embed = { title, description, color: parseInt(color?.replace('#', '') || '5865F2', 16), timestamp: timestamp ? new Date().toISOString() : undefined }
     if (image) embed.image = { url: image }
     if (thumbnail) embed.thumbnail = { url: thumbnail }
     if (footer) embed.footer = { text: footer }
