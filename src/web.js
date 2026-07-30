@@ -6,7 +6,7 @@ const fs = require('fs')
 const configPath = path.join(__dirname, '..', 'data', 'config.json')
 const CLIENT_ID = process.env.DISCORD_CLIENT_ID
 const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET
-const PORT = process.env.WEB_PORT || 19222
+const PORT = process.env.WEB_PORT || 3001
 const BASE = `http://${process.env.VPS_IP || 'localhost'}:${PORT}`
 
 function loadConfig() {
