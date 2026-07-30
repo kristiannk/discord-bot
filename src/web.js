@@ -25,17 +25,9 @@ app.set('views', path.join(__dirname, '..', 'views'))
 
 function isAuthenticated(req, res, next) {
   if (req.session.user) return next()
-  res.redirect('/login')
-}
-
-app.get('/login', (req, res) => {
-  res.render('login', { base: BASE, clientId: CLIENT_ID })
-})
-
-app.get('/auth/discord', (req, res) => {
   const url = `https://discord.com/api/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE + '/auth/discord/callback')}&response_type=code&scope=identify`
   res.redirect(url)
-})
+}
 
 app.get('/auth/discord/callback', async (req, res) => {
   try {
