@@ -20,6 +20,7 @@ function saveConfig(cfg) {
 const app = express()
 app.use(session({ secret: process.env.SESSION_SECRET || 'change-me', resave: false, saveUninitialized: false }))
 app.use(express.urlencoded({ extended: true }))
+app.use(express.json())
 app.set('view engine', 'ejs')
 app.set('views', path.join(__dirname, '..', 'views'))
 
