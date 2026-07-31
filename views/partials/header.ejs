@@ -1,0 +1,16 @@
+<div class="header">
+  <h1><i class="fab fa-discord"></i> Announcement Bot</h1>
+  <div class="nav">
+    <a href="/" class="<%= active === 'announce' ? 'active' : '' %>"><i class="fas fa-bullhorn"></i> <span>Announcement</span></a>
+    <a href="/events" class="<%= active === 'events' ? 'active' : '' %>"><i class="fas fa-calendar-alt"></i> <span>Event Date</span></a>
+  </div>
+  <div class="user">
+    <% if (user.avatar) { %>
+      <img src="https://cdn.discordapp.com/avatars/<%= user.id %>/<%= user.avatar %>.png" alt="">
+    <% } else { %>
+      <img src="https://cdn.discordapp.com/embed/avatars/0.png" alt="">
+    <% } %>
+    <span class="uname"><%= user.globalName || user.username %></span>
+    <a href="/logout" title="Logout"><i class="fas fa-sign-out-alt"></i></a>
+  </div>
+</div>

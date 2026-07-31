@@ -64,13 +64,20 @@ app.get('/logout', (req, res) => {
   res.redirect('/login')
 })
 
-app.get('/', isAuthenticated, (req, res) => {
+function getGuilds(req) {
   const cfg = loadConfig()
-  const guilds = Object.keys(cfg.guilds).map(id => {
+  return Object.keys(cfg.guilds).map(id => {
     const guild = req.app.locals.client.guilds.cache.get(id)
     return { id, name: guild ? guild.name : id }
   })
-  res.render('dashboard', { user: req.session.user, guilds, base: BASE })
+}
+
+app.get('/', isAuthenticated, (req, res) => {
+  res.render('dashboard', { user: req.session.user, guilds: getGuilds(req), base: BASE })
+})
+
+app.get('/events', isAuthenticated, (req, res) => {
+  res.render('events', { user: req.session.user, guilds: getGuilds(req), base: BASE })
 })
 
 app.post('/api/announce', isAuthenticated, async (req, res) => {
@@ -98,6 +105,42 @@ app.post('/api/announce', isAuthenticated, async (req, res) => {
     res.send('Announcement sent!')
   } catch (err) {
     console.error('Announce error:', err)
+    res.status(500).send('Failed to send: ' + err.message)
+  }
+})
+
+app.post('/api/announce-event', isAuthenticated, async (req, res) => {
+  try {
+    const { guildId, title, description, datetime, location, color, image } = req.body
+    if (!guildId || !title || !description || !datetime) {
+      return res.status(400).send('Missing required fields: guildId, title, description, datetime')
+    }
+    const cfg = loadConfig()
+    const channelId = cfg.guilds[guildId]?.channelId
+    if (!channelId) {
+      return res.status(400).send('No channel configured for this guild. Use /setchannel in Discord first.')
+    }
+    const eventDate = new Date(datetime)
+    if (isNaN(eventDate.getTime())) return res.status(400).send('Invalid date')
+    const unix = Math.floor(eventDate.getTime() / 1000)
+    const embed = {
+      title: `📅 ${title}`,
+      description,
+      color: parseInt(color?.replace('#', '') || '5865F2', 16),
+      timestamp: new Date().toISOString(),
+      fields: [
+        { name: '📆 Waktu', value: `<t:${unix}:F>`, inline: true },
+        { name: '⏳ Sisa Waktu', value: `<t:${unix}:R>`, inline: true },
+      ],
+    }
+    if (location) embed.fields.push({ name: '📍 Lokasi', value: location, inline: true })
+    if (image) embed.image = { url: image }
+    const channel = await req.app.locals.client.channels.fetch(channelId)
+    if (!channel) return res.status(400).send('Channel not found')
+    await channel.send({ embeds: [embed] })
+    res.send('Event announcement sent!')
+  } catch (err) {
+    console.error('Event announce error:', err)
     res.status(500).send('Failed to send: ' + err.message)
   }
 })

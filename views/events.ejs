@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Event Date Announcement</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<%- include('partials/styles') %>
+</head>
+<body>
+<%- include('partials/header', { active: 'events' }) %>
+
+<div class="container">
+  <% if (guilds.length === 0) { %>
+    <div class="card">
+      <div class="empty-state">
+        <i class="fas fa-server"></i>
+        <h3>No servers configured</h3>
+        <p>Invite the bot to a server and use <code>/setchannel</code> in Discord<br>to set the announcement channel.</p>
+      </div>
+    </div>
+  <% } else { %>
+
+  <div class="card">
+    <h2><i class="fas fa-calendar-alt"></i> Event Date Announcement</h2>
+    <form id="eventForm">
+      <div class="form-group">
+        <label><i class="fas fa-server"></i> Server</label>
+        <select name="guildId" required>
+          <% guilds.forEach(g => { %>
+            <option value="<%= g.id %>"><%= g.name %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-heading"></i> Event Title *</label>
+        <input type="text" name="title" placeholder="e.g. Rapat Bulanan" required oninput="updatePreview()">
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-align-left"></i> Description *</label>
+        <textarea name="description" placeholder="Agenda kegiatan / detail acara..." required oninput="updatePreview()"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label><i class="fas fa-calendar-check"></i> Date &amp; Time *</label>
+          <input type="datetime-local" name="datetime" required onchange="updatePreview()">
+        </div>
+        <div class="form-group">
+          <label><i class="fas fa-map-marker-alt"></i> Location</label>
+          <input type="text" name="location" placeholder="e.g. Ruang Meeting 1" oninput="updatePreview()">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label><i class="fas fa-palette"></i> Color</label>
+          <input type="color" name="color" value="#5865F2" oninput="updatePreview()">
+        </div>
+        <div class="form-group">
+          <label><i class="fas fa-image"></i> Image URL</label>
+          <input type="url" name="image" placeholder="https://..." oninput="updatePreview()">
+        </div>
+      </div>
+
+      <div id="preview">
+        <div class="label"><i class="fas fa-eye"></i> Preview</div>
+        <h3 id="previewTitle">📅 Event Title</h3>
+        <p id="previewDesc">Description</p>
+        <img id="previewImage" src="" alt="">
+        <div id="previewFields" class="fields"></div>
+        <div id="previewCountdown" class="footer"></div>
+      </div>
+
+      <button type="submit" class="btn-submit" style="margin-top:20px"><i class="fas fa-paper-plane"></i> Send Announcement</button>
+    </form>
+    <div id="result"></div>
+  </div>
+  <% } %>
+</div>
+
+<script>
+let countdownInterval = null
+
+function formatDate(d) {
+  return d.toLocaleString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function formatCountdown(diff) {
+  if (diff <= 0) return '🎉 Waktu pelaksanaan sudah tiba!'
+  const days = Math.floor(diff / 86400000)
+  const hours = Math.floor((diff % 86400000) / 3600000)
+  const mins = Math.floor((diff % 3600000) / 60000)
+  let s = ''
+  if (days) s += days + ' hari '
+  if (hours) s += hours + ' jam '
+  if (mins) s += mins + ' menit'
+  return '⏳ ' + (s || 'Kurang dari 1 menit') + ' lagi'
+}
+
+function updatePreview() {
+  const title = document.querySelector('[name="title"]').value || 'Event Title'
+  const desc = document.querySelector('[name="description"]').value || 'Description'
+  const color = document.querySelector('[name="color"]').value
+  const dt = document.querySelector('[name="datetime"]').value
+  const loc = document.querySelector('[name="location"]').value
+  const image = document.querySelector('[name="image"]').value
+
+  document.getElementById('preview').style.borderLeftColor = color
+  document.getElementById('previewTitle').textContent = '📅 ' + title
+  document.getElementById('previewDesc').textContent = desc
+
+  const imgEl = document.getElementById('previewImage')
+  if (image) { imgEl.src = image; imgEl.style.display = 'block' } else { imgEl.style.display = 'none' }
+
+  let html = ''
+  if (dt) {
+    const d = new Date(dt)
+    html += '<div class="field"><strong>📆 Waktu:</strong> <span>' + formatDate(d) + '</span></div>'
+  }
+  if (loc) html += '<div class="field"><strong>📍 Lokasi:</strong> <span>' + escapeHtml(loc) + '</span></div>'
+  document.getElementById('previewFields').innerHTML = html
+
+  if (countdownInterval) clearInterval(countdownInterval)
+  const cdEl = document.getElementById('previewCountdown')
+  if (dt) {
+    const d = new Date(dt)
+    const tick = () => cdEl.textContent = formatCountdown(d.getTime() - Date.now())
+    tick()
+    countdownInterval = setInterval(tick, 1000)
+  } else {
+    cdEl.textContent = ''
+  }
+}
+
+function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML }
+
+document.getElementById('eventForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault()
+  const fd = new FormData(e.target)
+  const data = { guildId: fd.get('guildId'), title: fd.get('title'), description: fd.get('description'), datetime: fd.get('datetime'), location: fd.get('location'), color: fd.get('color'), image: fd.get('image') }
+  const btn = e.target.querySelector('.btn-submit')
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...'
+  try {
+    const res = await fetch('/api/announce-event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+    const text = await res.text()
+    document.getElementById('result').innerHTML = res.ok ? '<div class="alert alert-success"><i class="fas fa-check-circle"></i> ' + text + '</div>' : '<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> ' + text + '</div>'
+  } catch (err) {
+    document.getElementById('result').innerHTML = '<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> ' + err.message + '</div>'
+  }
+  btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Announcement'
+})
+</script>
+</body>
+</html>
