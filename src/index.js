@@ -225,6 +225,10 @@ const commands = [
     .setName('setchannel')
     .setDescription('Set channel untuk announcement')
     .addChannelOption(opt => opt.setName('channel').setDescription('Pilih channel').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('seteventchannel')
+    .setDescription('Set channel untuk pengumuman tanggal (event/rapat)')
+    .addChannelOption(opt => opt.setName('channel').setDescription('Pilih channel').setRequired(true)),
 ].map(cmd => cmd.toJSON())
 
 const fs_cmd = require('fs')
@@ -436,6 +440,15 @@ client.on('interactionCreate', async interaction => {
     cfg.guilds[guildId].channelId = channel.id
     saveConfig(cfg)
     return interaction.reply({ content: `Channel announcement diset ke <#${channel.id}>`, ephemeral: true })
+  }
+
+  if (commandName === 'seteventchannel') {
+    const channel = interaction.options.getChannel('channel')
+    const cfg = loadConfig()
+    if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {}
+    cfg.guilds[guildId].eventChannelId = channel.id
+    saveConfig(cfg)
+    return interaction.reply({ content: `Channel pengumuman tanggal diset ke <#${channel.id}>`, ephemeral: true })
   }
 })
 

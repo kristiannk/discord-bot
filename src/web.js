@@ -116,9 +116,9 @@ app.post('/api/announce-event', isAuthenticated, async (req, res) => {
       return res.status(400).send('Missing required fields: guildId, title, description, datetime')
     }
     const cfg = loadConfig()
-    const channelId = cfg.guilds[guildId]?.channelId
+    const channelId = cfg.guilds[guildId]?.eventChannelId || cfg.guilds[guildId]?.channelId
     if (!channelId) {
-      return res.status(400).send('No channel configured for this guild. Use /setchannel in Discord first.')
+      return res.status(400).send('No channel configured for this guild. Use /seteventchannel or /setchannel in Discord first.')
     }
     const eventDate = new Date(datetime)
     if (isNaN(eventDate.getTime())) return res.status(400).send('Invalid date')
