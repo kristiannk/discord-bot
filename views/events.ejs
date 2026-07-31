@@ -3,9 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Event Date Announcement</title>
+<title>Agenda Kegiatan</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <%- include('partials/styles') %>
+<style>
+.agenda-item { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+.agenda-item .agenda-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.agenda-item .agenda-num { font-size: 13px; font-weight: 600; color: #58a6ff; }
+.agenda-item .form-row { gap: 8px; }
+.status-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 6px 12px; border-radius: 20px; margin-bottom: 16px; }
+.status-ok { background: #1c2d1f; color: #7ee787; border: 1px solid #2ea043; }
+.status-none { background: #21262d; color: #8b949e; border: 1px solid #30363d; }
+.toolbar { display: flex; gap: 10px; margin-top: 18px; }
+.toolbar .btn-submit { width: auto; flex: 1; }
+.empty-agenda { text-align: center; padding: 28px; color: #8b949e; font-size: 14px; border: 1px dashed #30363d; border-radius: 8px; margin-bottom: 12px; }
+</style>
 </head>
 <body>
 <%- include('partials/header', { active: 'events' }) %>
@@ -16,138 +28,197 @@
       <div class="empty-state">
         <i class="fas fa-server"></i>
         <h3>No servers configured</h3>
-        <p>Invite the bot to a server and use <code>/setchannel</code> in Discord<br>to set the announcement channel.</p>
+        <p>Invite the bot to a server and use <code>/seteventchannel</code> in Discord<br>to set the event announcement channel.</p>
       </div>
     </div>
   <% } else { %>
 
   <div class="card">
-    <h2><i class="fas fa-calendar-alt"></i> Event Date Announcement</h2>
-    <form id="eventForm">
-      <div class="form-group">
-        <label><i class="fas fa-server"></i> Server</label>
-        <select name="guildId" required>
-          <% guilds.forEach(g => { %>
-            <option value="<%= g.id %>"><%= g.name %></option>
-          <% }) %>
-        </select>
-      </div>
-      <div class="form-group">
-        <label><i class="fas fa-heading"></i> Event Title *</label>
-        <input type="text" name="title" placeholder="e.g. Rapat Bulanan" required oninput="updatePreview()">
-      </div>
-      <div class="form-group">
-        <label><i class="fas fa-align-left"></i> Description *</label>
-        <textarea name="description" placeholder="Agenda kegiatan / detail acara..." required oninput="updatePreview()"></textarea>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label><i class="fas fa-calendar-check"></i> Date &amp; Time *</label>
-          <input type="datetime-local" name="datetime" required onchange="updatePreview()">
-        </div>
-        <div class="form-group">
-          <label><i class="fas fa-map-marker-alt"></i> Location</label>
-          <input type="text" name="location" placeholder="e.g. Ruang Meeting 1" oninput="updatePreview()">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label><i class="fas fa-palette"></i> Color</label>
-          <input type="color" name="color" value="#5865F2" oninput="updatePreview()">
-        </div>
-        <div class="form-group">
-          <label><i class="fas fa-image"></i> Image URL</label>
-          <input type="url" name="image" placeholder="https://..." oninput="updatePreview()">
-        </div>
-      </div>
+    <h2><i class="fas fa-calendar-alt"></i> Agenda Kegiatan</h2>
+    <div class="form-group">
+      <label><i class="fas fa-server"></i> Server</label>
+      <select id="guildSelect"></select>
+    </div>
+    <div id="statusPill" class="status-pill status-none"><i class="fas fa-info-circle"></i> <span></span></div>
 
-      <div id="preview">
-        <div class="label"><i class="fas fa-eye"></i> Preview</div>
-        <h3 id="previewTitle">📅 Event Title</h3>
-        <p id="previewDesc">Description</p>
-        <img id="previewImage" src="" alt="">
-        <div id="previewFields" class="fields"></div>
-        <div id="previewCountdown" class="footer"></div>
-      </div>
+    <label style="display:block;margin-bottom:10px;font-size:13px;font-weight:500;color:#8b949e;text-transform:uppercase;letter-spacing:0.5px;"><i class="fas fa-list"></i> Daftar Agenda</label>
+    <div id="agendaList"></div>
+    <button type="button" class="btn-add" onclick="addAgenda()"><i class="fas fa-plus"></i> Tambah Agenda</button>
 
-      <button type="submit" class="btn-submit" style="margin-top:20px"><i class="fas fa-paper-plane"></i> Send Announcement</button>
-    </form>
+    <div id="preview" style="margin-top:20px;">
+      <div class="label"><i class="fas fa-eye"></i> Preview Embed di Discord</div>
+      <h3>📅 Agenda Kegiatan</h3>
+      <div id="previewFields" class="fields"></div>
+      <div class="footer">Diperbarui sekarang</div>
+    </div>
+
+    <div class="toolbar">
+      <button type="button" class="btn-submit" onclick="saveAgenda()"><i class="fas fa-paper-plane"></i> Simpan ke Discord</button>
+    </div>
     <div id="result"></div>
   </div>
   <% } %>
 </div>
 
 <script>
-let countdownInterval = null
+const guildsData = <%- JSON.stringify(guilds).replace(/</g, '\\u003c') %>;
 
-function formatDate(d) {
-  return d.toLocaleString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
+let currentGuild = null
+let agendaIdCounter = 0
 
-function formatCountdown(diff) {
-  if (diff <= 0) return '🎉 Waktu pelaksanaan sudah tiba!'
-  const days = Math.floor(diff / 86400000)
-  const hours = Math.floor((diff % 86400000) / 3600000)
-  const mins = Math.floor((diff % 3600000) / 60000)
-  let s = ''
-  if (days) s += days + ' hari '
-  if (hours) s += hours + ' jam '
-  if (mins) s += mins + ' menit'
-  return '⏳ ' + (s || 'Kurang dari 1 menit') + ' lagi'
-}
-
-function updatePreview() {
-  const title = document.querySelector('[name="title"]').value || 'Event Title'
-  const desc = document.querySelector('[name="description"]').value || 'Description'
-  const color = document.querySelector('[name="color"]').value
-  const dt = document.querySelector('[name="datetime"]').value
-  const loc = document.querySelector('[name="location"]').value
-  const image = document.querySelector('[name="image"]').value
-
-  document.getElementById('preview').style.borderLeftColor = color
-  document.getElementById('previewTitle').textContent = '📅 ' + title
-  document.getElementById('previewDesc').textContent = desc
-
-  const imgEl = document.getElementById('previewImage')
-  if (image) { imgEl.src = image; imgEl.style.display = 'block' } else { imgEl.style.display = 'none' }
-
-  let html = ''
-  if (dt) {
-    const d = new Date(dt)
-    html += '<div class="field"><strong>📆 Waktu:</strong> <span>' + formatDate(d) + '</span></div>'
-  }
-  if (loc) html += '<div class="field"><strong>📍 Lokasi:</strong> <span>' + escapeHtml(loc) + '</span></div>'
-  document.getElementById('previewFields').innerHTML = html
-
-  if (countdownInterval) clearInterval(countdownInterval)
-  const cdEl = document.getElementById('previewCountdown')
-  if (dt) {
-    const d = new Date(dt)
-    const tick = () => cdEl.textContent = formatCountdown(d.getTime() - Date.now())
-    tick()
-    countdownInterval = setInterval(tick, 1000)
-  } else {
-    cdEl.textContent = ''
-  }
+function fmtDateForInput(d) {
+  if (!d) return ''
+  const dt = new Date(d)
+  if (isNaN(dt.getTime())) return ''
+  const pad = n => String(n).padStart(2, '0')
+  return dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate()) + 'T' + pad(dt.getHours()) + ':' + pad(dt.getMinutes())
 }
 
 function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML }
 
-document.getElementById('eventForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault()
-  const fd = new FormData(e.target)
-  const data = { guildId: fd.get('guildId'), title: fd.get('title'), description: fd.get('description'), datetime: fd.get('datetime'), location: fd.get('location'), color: fd.get('color'), image: fd.get('image') }
-  const btn = e.target.querySelector('.btn-submit')
-  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...'
+function renderGuildSelect() {
+  const sel = document.getElementById('guildSelect')
+  sel.innerHTML = guildsData.map(g => '<option value="' + g.id + '">' + escapeHtml(g.name) + '</option>').join('')
+  sel.onchange = () => loadGuild(sel.value)
+}
+
+function loadGuild(id) {
+  currentGuild = guildsData.find(g => g.id === id) || null
+  if (!currentGuild) return
+  agendaIdCounter = 0
+  const list = document.getElementById('agendaList')
+  list.innerHTML = ''
+  currentGuild.agendas.forEach(a => addAgenda(a))
+  if (!currentGuild.agendas.length) showEmptyAgenda()
+  updateStatus()
+  updatePreview()
+}
+
+function showEmptyAgenda() {
+  const list = document.getElementById('agendaList')
+  if (!list.querySelector('.agenda-item')) {
+    const d = document.createElement('div')
+    d.className = 'empty-agenda'
+    d.id = 'emptyAgenda'
+    d.innerHTML = '<i class="fas fa-calendar-plus" style="font-size:24px;margin-bottom:8px;display:block;"></i>Belum ada agenda. Klik "Tambah Agenda" untuk mulai.'
+    list.appendChild(d)
+  }
+}
+
+function addAgenda(a) {
+  a = a || {}
+  agendaIdCounter++
+  const id = agendaIdCounter
+  const div = document.createElement('div')
+  div.className = 'agenda-item'
+  div.id = 'agenda-' + id
+  div.innerHTML = `
+    <div class="agenda-head">
+      <span class="agenda-num"><i class="fas fa-calendar-day"></i> Agenda #${id}</span>
+      <button type="button" class="btn-remove" onclick="removeAgenda(${id})"><i class="fas fa-trash-alt"></i> Hapus</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Judul *</label>
+        <input type="text" class="ag-title" placeholder="e.g. Rapat Bulanan" value="${escapeHtml(a.title || '')}">
+      </div>
+      <div class="form-group">
+        <label>Tanggal & Waktu</label>
+        <input type="datetime-local" class="ag-datetime" value="${fmtDateForInput(a.datetime)}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Lokasi</label>
+        <input type="text" class="ag-location" placeholder="e.g. Ruang Meeting 1" value="${escapeHtml(a.location || '')}">
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label>Deskripsi</label>
+      <textarea class="ag-description" placeholder="Detail agenda / kegiatan...">${escapeHtml(a.description || '')}</textarea>
+    </div>`
+  const list = document.getElementById('agendaList')
+  const empty = document.getElementById('emptyAgenda')
+  if (empty) empty.remove()
+  list.appendChild(div)
+  updatePreview()
+}
+
+function removeAgenda(id) {
+  const el = document.getElementById('agenda-' + id)
+  if (el) el.remove()
+  if (!document.querySelector('.agenda-item')) showEmptyAgenda()
+  updatePreview()
+}
+
+function getAgendas() {
+  return Array.from(document.querySelectorAll('.agenda-item')).map(el => ({
+    title: el.querySelector('.ag-title').value,
+    description: el.querySelector('.ag-description').value,
+    datetime: el.querySelector('.ag-datetime').value,
+    location: el.querySelector('.ag-location').value,
+  })).filter(a => a.title)
+}
+
+function formatDate(d) {
+  return d.toLocaleString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function updatePreview() {
+  const agendas = getAgendas()
+  const fieldsDiv = document.getElementById('previewFields')
+  fieldsDiv.innerHTML = agendas.length
+    ? agendas.map((a, i) => {
+        let val = ''
+        if (a.datetime) {
+          const d = new Date(a.datetime)
+          if (!isNaN(d.getTime())) val += '<span>📆 ' + formatDate(d) + '</span><br>'
+        }
+        if (a.location) val += '<span>📍 ' + escapeHtml(a.location) + '</span><br>'
+        if (a.description) val += '<span>' + escapeHtml(a.description) + '</span>'
+        return '<div class="field"><strong>' + (i + 1) + '. ' + escapeHtml(a.title) + '</strong><div>' + val + '</div></div>'
+      }).join('')
+    : '<div style="color:#8b949e;font-size:13px;">Belum ada agenda.</div>'
+}
+
+function updateStatus() {
+  const pill = document.getElementById('statusPill')
+  const span = pill.querySelector('span')
+  if (currentGuild.hasMessage) {
+    pill.className = 'status-pill status-ok'
+    span.textContent = 'Embed agenda sudah ada di Discord — perubahan akan langsung meng-edit embed tersebut.'
+  } else {
+    pill.className = 'status-pill status-none'
+    span.textContent = 'Belum ada embed agenda. Simpan akan membuat embed baru di Discord.'
+  }
+}
+
+async function saveAgenda() {
+  if (!currentGuild) return
+  const agendas = getAgendas()
+  if (!agendas.length) {
+    document.getElementById('result').innerHTML = '<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> Tambahkan minimal 1 agenda terlebih dahulu.</div>'
+    return
+  }
+  const btn = document.querySelector('.toolbar .btn-submit')
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...'
   try {
-    const res = await fetch('/api/announce-event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+    const res = await fetch('/api/sync-agenda', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guildId: currentGuild.id, agendas }) })
     const text = await res.text()
+    if (res.ok) {
+      currentGuild.hasMessage = true
+      currentGuild.agendas = agendas
+      updateStatus()
+    }
     document.getElementById('result').innerHTML = res.ok ? '<div class="alert alert-success"><i class="fas fa-check-circle"></i> ' + text + '</div>' : '<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> ' + text + '</div>'
   } catch (err) {
     document.getElementById('result').innerHTML = '<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> ' + err.message + '</div>'
   }
-  btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Announcement'
-})
+  btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Simpan ke Discord'
+}
+
+renderGuildSelect()
+loadGuild(guildsData[0].id)
 </script>
 </body>
 </html>

@@ -68,8 +68,28 @@ function getGuilds(req) {
   const cfg = loadConfig()
   return Object.keys(cfg.guilds).map(id => {
     const guild = req.app.locals.client.guilds.cache.get(id)
-    return { id, name: guild ? guild.name : id }
+    const gc = cfg.guilds[id] || {}
+    return { id, name: guild ? guild.name : id, agendas: gc.agendas || [], hasMessage: !!gc.eventMessageId }
   })
+}
+
+function buildAgendaEmbed(agendas) {
+  const fields = agendas.map((a, i) => {
+    const unix = a.datetime ? Math.floor(new Date(a.datetime).getTime() / 1000) : null
+    let value = ''
+    if (unix) value += `<t:${unix}:F>\n<t:${unix}:R>\n`
+    if (a.location) value += `📍 ${a.location}\n`
+    if (a.description) value += `\n${a.description}`
+    return { name: `${i + 1}. ${a.title}`, value: value || '—' }
+  })
+  const embed = {
+    title: '📅 Agenda Kegiatan',
+    color: parseInt('5865F2', 16),
+    timestamp: new Date().toISOString(),
+    fields,
+  }
+  if (!agendas.length) embed.description = 'Belum ada agenda.'
+  return embed
 }
 
 app.get('/', isAuthenticated, (req, res) => {
@@ -109,38 +129,49 @@ app.post('/api/announce', isAuthenticated, async (req, res) => {
   }
 })
 
-app.post('/api/announce-event', isAuthenticated, async (req, res) => {
+app.post('/api/sync-agenda', isAuthenticated, async (req, res) => {
   try {
-    const { guildId, title, description, datetime, location, color, image } = req.body
-    if (!guildId || !title || !description || !datetime) {
-      return res.status(400).send('Missing required fields: guildId, title, description, datetime')
+    const { guildId, agendas } = req.body
+    if (!guildId || !Array.isArray(agendas)) {
+      return res.status(400).send('Missing guildId or agendas')
     }
+    const cleaned = agendas.filter(a => a.title).map(a => ({
+      title: String(a.title).slice(0, 100),
+      description: String(a.description || '').slice(0, 500),
+      datetime: a.datetime || '',
+      location: String(a.location || '').slice(0, 100),
+    }))
     const cfg = loadConfig()
-    const channelId = cfg.guilds[guildId]?.eventChannelId || cfg.guilds[guildId]?.channelId
+    const guildCfg = cfg.guilds[guildId]
+    if (!guildCfg) return res.status(400).send('Guild not configured')
+    const channelId = guildCfg.eventChannelId || guildCfg.channelId
     if (!channelId) {
       return res.status(400).send('No channel configured for this guild. Use /seteventchannel or /setchannel in Discord first.')
     }
-    const eventDate = new Date(datetime)
-    if (isNaN(eventDate.getTime())) return res.status(400).send('Invalid date')
-    const unix = Math.floor(eventDate.getTime() / 1000)
-    const embed = {
-      title: `📅 ${title}`,
-      description,
-      color: parseInt(color?.replace('#', '') || '5865F2', 16),
-      timestamp: new Date().toISOString(),
-      fields: [
-        { name: '📆 Waktu', value: `<t:${unix}:F>`, inline: true },
-        { name: '⏳ Sisa Waktu', value: `<t:${unix}:R>`, inline: true },
-      ],
-    }
-    if (location) embed.fields.push({ name: '📍 Lokasi', value: location, inline: true })
-    if (image) embed.image = { url: image }
+    guildCfg.agendas = cleaned
+    saveConfig(cfg)
+
     const channel = await req.app.locals.client.channels.fetch(channelId)
     if (!channel) return res.status(400).send('Channel not found')
-    await channel.send({ embeds: [embed] })
-    res.send('Event announcement sent!')
+
+    const embed = buildAgendaEmbed(cleaned)
+
+    if (guildCfg.eventMessageId) {
+      try {
+        const msg = await channel.messages.fetch(guildCfg.eventMessageId)
+        await msg.edit({ embeds: [embed] })
+        return res.send('Agenda diperbarui di embed yang sudah ada!')
+      } catch {
+        // message deleted, send new one below
+      }
+    }
+    const msg = await channel.send({ embeds: [embed] })
+    guildCfg.eventMessageId = msg.id
+    saveConfig(cfg)
+    try { await msg.pin() } catch {}
+    res.send('Embed agenda dikirim ke Discord!')
   } catch (err) {
-    console.error('Event announce error:', err)
+    console.error('Sync agenda error:', err)
     res.status(500).send('Failed to send: ' + err.message)
   }
 })
