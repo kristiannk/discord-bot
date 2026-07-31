@@ -69,11 +69,11 @@ function getGuilds(req) {
   return Object.keys(cfg.guilds).map(id => {
     const guild = req.app.locals.client.guilds.cache.get(id)
     const gc = cfg.guilds[id] || {}
-    return { id, name: guild ? guild.name : id, agendas: gc.agendas || [], hasMessage: !!gc.eventMessageId }
+    return { id, name: guild ? guild.name : id, agendas: gc.agendas || [], agendaImage: gc.agendaImage || '', hasMessage: !!gc.eventMessageId }
   })
 }
 
-function buildAgendaEmbed(agendas) {
+function buildAgendaEmbed(agendas, agendaImage) {
   const fields = agendas.map((a, i) => {
     const unix = a.datetime ? Math.floor(new Date(a.datetime).getTime() / 1000) : null
     let value = ''
@@ -88,6 +88,7 @@ function buildAgendaEmbed(agendas) {
     timestamp: new Date().toISOString(),
     fields,
   }
+  if (agendaImage) embed.image = { url: agendaImage }
   if (!agendas.length) embed.description = 'Belum ada agenda.'
   return embed
 }
@@ -131,7 +132,7 @@ app.post('/api/announce', isAuthenticated, async (req, res) => {
 
 app.post('/api/sync-agenda', isAuthenticated, async (req, res) => {
   try {
-    const { guildId, agendas } = req.body
+    const { guildId, agendas, agendaImage } = req.body
     if (!guildId || !Array.isArray(agendas)) {
       return res.status(400).send('Missing guildId or agendas')
     }
@@ -149,12 +150,13 @@ app.post('/api/sync-agenda', isAuthenticated, async (req, res) => {
       return res.status(400).send('No channel configured for this guild. Use /seteventchannel or /setchannel in Discord first.')
     }
     guildCfg.agendas = cleaned
+    guildCfg.agendaImage = typeof agendaImage === 'string' ? agendaImage.slice(0, 500) : ''
     saveConfig(cfg)
 
     const channel = await req.app.locals.client.channels.fetch(channelId)
     if (!channel) return res.status(400).send('Channel not found')
 
-    const embed = buildAgendaEmbed(cleaned)
+    const embed = buildAgendaEmbed(cleaned, guildCfg.agendaImage)
 
     if (guildCfg.eventMessageId) {
       try {

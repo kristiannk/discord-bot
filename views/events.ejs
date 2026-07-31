@@ -41,6 +41,11 @@
     </div>
     <div id="statusPill" class="status-pill status-none"><i class="fas fa-info-circle"></i> <span></span></div>
 
+    <div class="form-group">
+      <label><i class="fas fa-image"></i> Gambar (opsional)</label>
+      <input type="url" id="agendaImage" placeholder="https://... (akan tampil di paling bawah embed)" oninput="updatePreview()">
+    </div>
+
     <label style="display:block;margin-bottom:10px;font-size:13px;font-weight:500;color:#8b949e;text-transform:uppercase;letter-spacing:0.5px;"><i class="fas fa-list"></i> Daftar Agenda</label>
     <div id="agendaList"></div>
     <button type="button" class="btn-add" onclick="addAgenda()"><i class="fas fa-plus"></i> Tambah Agenda</button>
@@ -49,6 +54,7 @@
       <div class="label"><i class="fas fa-eye"></i> Preview Embed di Discord</div>
       <h3>📅 Agenda Kegiatan</h3>
       <div id="previewFields" class="fields"></div>
+      <img id="previewImage" src="" alt="">
       <div class="footer">Diperbarui sekarang</div>
     </div>
 
@@ -88,6 +94,7 @@ function loadGuild(id) {
   agendaIdCounter = 0
   const list = document.getElementById('agendaList')
   list.innerHTML = ''
+  document.getElementById('agendaImage').value = currentGuild.agendaImage || ''
   currentGuild.agendas.forEach(a => addAgenda(a))
   if (!currentGuild.agendas.length) showEmptyAgenda()
   updateStatus()
@@ -166,6 +173,7 @@ function formatDate(d) {
 
 function updatePreview() {
   const agendas = getAgendas()
+  const image = document.getElementById('agendaImage').value
   const fieldsDiv = document.getElementById('previewFields')
   fieldsDiv.innerHTML = agendas.length
     ? agendas.map((a, i) => {
@@ -179,6 +187,9 @@ function updatePreview() {
         return '<div class="field"><strong>' + (i + 1) + '. ' + escapeHtml(a.title) + '</strong><div>' + val + '</div></div>'
       }).join('')
     : '<div style="color:#8b949e;font-size:13px;">Belum ada agenda.</div>'
+
+  const imgEl = document.getElementById('previewImage')
+  if (image) { imgEl.src = image; imgEl.style.display = 'block' } else { imgEl.style.display = 'none' }
 }
 
 function updateStatus() {
@@ -203,11 +214,12 @@ async function saveAgenda() {
   const btn = document.querySelector('.toolbar .btn-submit')
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...'
   try {
-    const res = await fetch('/api/sync-agenda', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guildId: currentGuild.id, agendas }) })
+    const res = await fetch('/api/sync-agenda', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guildId: currentGuild.id, agendas, agendaImage: document.getElementById('agendaImage').value }) })
     const text = await res.text()
     if (res.ok) {
       currentGuild.hasMessage = true
       currentGuild.agendas = agendas
+      currentGuild.agendaImage = document.getElementById('agendaImage').value
       updateStatus()
     }
     document.getElementById('result').innerHTML = res.ok ? '<div class="alert alert-success"><i class="fas fa-check-circle"></i> ' + text + '</div>' : '<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> ' + text + '</div>'
