@@ -250,6 +250,10 @@ const commands = [
     .setName('setwarnrole')
     .setDescription('Set role yang diberikan ke member yang di-warn')
     .addRoleOption(opt => opt.setName('role').setDescription('Pilih role').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('setwarnchannel')
+    .setDescription('Set channel untuk embed pesan warning')
+    .addChannelOption(opt => opt.setName('channel').setDescription('Pilih channel').setRequired(true)),
 ].map(cmd => cmd.toJSON())
 
 const fs_cmd = require('fs')
@@ -513,6 +517,18 @@ client.on('interactionCreate', async interaction => {
     return interaction.reply({ content: `Role warning diset ke <@&${role.id}>`, ephemeral: true })
   }
 
+  if (commandName === 'setwarnchannel') {
+    if (!canWarn()) {
+      return interaction.reply({ content: 'Kamu butuh permission Manage Messages / Kick Members untuk menggunakan ini.', ephemeral: true })
+    }
+    const channel = interaction.options.getChannel('channel')
+    const cfg = loadConfig()
+    if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {}
+    cfg.guilds[guildId].warnChannelId = channel.id
+    saveConfig(cfg)
+    return interaction.reply({ content: `Channel pesan warning diset ke <#${channel.id}>`, ephemeral: true })
+  }
+
   if (commandName === 'warn') {
     if (!canWarn()) {
       return interaction.reply({ content: 'Kamu butuh permission Manage Messages / Kick Members untuk menggunakan ini.', ephemeral: true })
@@ -544,6 +560,17 @@ client.on('interactionCreate', async interaction => {
         { name: 'Total Warning', value: String(total), inline: true },
         { name: 'Oleh', value: member.user.tag, inline: true },
       )
+
+    const warnChannelId = cfg.guilds[guildId].warnChannelId
+    if (warnChannelId) {
+      try {
+        const warnChannel = await interaction.guild.channels.fetch(warnChannelId)
+        await warnChannel.send({ embeds: [embed] })
+        return interaction.reply({ content: `⚠️ Warning diberikan ke ${target} (Total: **${total}**). Embed dikirim ke <#${warnChannelId}>.`, ephemeral: true })
+      } catch (err) {
+        console.error('Warn channel error:', err?.message || err)
+      }
+    }
     return interaction.reply({ embeds: [embed] })
   }
 
