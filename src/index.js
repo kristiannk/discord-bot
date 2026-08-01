@@ -246,6 +246,10 @@ const commands = [
     .setName('clearwarns')
     .setDescription('Reset semua warning seorang member')
     .addUserOption(opt => opt.setName('user').setDescription('Member').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('setwarnrole')
+    .setDescription('Set role yang diberikan ke member yang di-warn')
+    .addRoleOption(opt => opt.setName('role').setDescription('Pilih role').setRequired(true)),
 ].map(cmd => cmd.toJSON())
 
 const fs_cmd = require('fs')
@@ -256,6 +260,33 @@ function loadConfig() {
 function saveConfig(cfg) {
   require('fs').mkdirSync(require('path').dirname(configPath), { recursive: true })
   require('fs').writeFileSync(configPath, JSON.stringify(cfg, null, 2))
+}
+
+async function getWarnRole(guild) {
+  const cfg = loadConfig()
+  const gid = guild.id
+  if (cfg.guilds[gid]?.warnRoleId) {
+    const role = guild.roles.cache.get(cfg.guilds[gid].warnRoleId)
+    if (role) return role
+  }
+  let role = guild.roles.cache.find(r => r.name === 'Warned')
+  if (!role) {
+    role = await guild.roles.create({ name: 'Warned', color: 0xffa500, reason: 'Auto-created for warn system' })
+  }
+  if (!cfg.guilds[gid]) cfg.guilds[gid] = {}
+  cfg.guilds[gid].warnRoleId = role.id
+  saveConfig(cfg)
+  return role
+}
+
+async function removeWarnRole(guild, userId) {
+  const cfg = loadConfig()
+  const roleId = cfg.guilds[guild.id]?.warnRoleId
+  if (!roleId) return
+  try {
+    const member = await guild.members.fetch(userId)
+    if (member.roles.cache.has(roleId)) await member.roles.remove(roleId)
+  } catch {}
 }
 
 client.on('interactionCreate', async interaction => {
@@ -470,6 +501,18 @@ client.on('interactionCreate', async interaction => {
 
   const canWarn = () => ['ManageMessages', 'KickMembers', 'ModerateMembers'].some(p => member.permissions.has(p))
 
+  if (commandName === 'setwarnrole') {
+    if (!canWarn()) {
+      return interaction.reply({ content: 'Kamu butuh permission Manage Messages / Kick Members untuk menggunakan ini.', ephemeral: true })
+    }
+    const role = interaction.options.getRole('role')
+    const cfg = loadConfig()
+    if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {}
+    cfg.guilds[guildId].warnRoleId = role.id
+    saveConfig(cfg)
+    return interaction.reply({ content: `Role warning diset ke <@&${role.id}>`, ephemeral: true })
+  }
+
   if (commandName === 'warn') {
     if (!canWarn()) {
       return interaction.reply({ content: 'Kamu butuh permission Manage Messages / Kick Members untuk menggunakan ini.', ephemeral: true })
@@ -485,8 +528,12 @@ client.on('interactionCreate', async interaction => {
     const total = cfg.guilds[guildId].warnings[target.id].length
 
     try {
-      await target.send(`⚠️ Kamu menerima warning di **${interaction.guild.name}**.\n**Alasan:** ${reason}\n**Total warning:** ${total}`)
-    } catch {}
+      const role = await getWarnRole(interaction.guild)
+      const targetMember = await interaction.guild.members.fetch(target.id)
+      if (!targetMember.roles.cache.has(role.id)) await targetMember.roles.add(role)
+    } catch (err) {
+      console.error('Warn role error:', err?.message || err)
+    }
 
     const embed = new EmbedBuilder()
       .setColor(0xffa500)
@@ -528,6 +575,7 @@ client.on('interactionCreate', async interaction => {
     }
     const removed = warns.pop()
     saveConfig(cfg)
+    if (!warns.length) await removeWarnRole(interaction.guild, target.id)
     return interaction.reply({ content: `✅ Warning terakhir ${target} dihapus (${removed.reason}). Sisa: **${warns.length}** warning.` })
   }
 
@@ -541,6 +589,7 @@ client.on('interactionCreate', async interaction => {
       delete cfg.guilds[guildId].warnings[target.id]
       saveConfig(cfg)
     }
+    await removeWarnRole(interaction.guild, target.id)
     return interaction.reply({ content: `✅ Semua warning ${target} direset.` })
   }
 })
