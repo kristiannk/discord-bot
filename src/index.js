@@ -229,6 +229,23 @@ const commands = [
     .setName('seteventchannel')
     .setDescription('Set channel untuk pengumuman tanggal (event/rapat)')
     .addChannelOption(opt => opt.setName('channel').setDescription('Pilih channel').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('warn')
+    .setDescription('Beri warning ke member yang melakukan kesalahan')
+    .addUserOption(opt => opt.setName('user').setDescription('Member yang di-warn').setRequired(true))
+    .addStringOption(opt => opt.setName('reason').setDescription('Alasan / kesalahan yang dilakukan').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('warns')
+    .setDescription('Lihat total warning seorang member')
+    .addUserOption(opt => opt.setName('user').setDescription('Member').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('unwarn')
+    .setDescription('Hapus warning terakhir dari seorang member')
+    .addUserOption(opt => opt.setName('user').setDescription('Member').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('clearwarns')
+    .setDescription('Reset semua warning seorang member')
+    .addUserOption(opt => opt.setName('user').setDescription('Member').setRequired(true)),
 ].map(cmd => cmd.toJSON())
 
 const fs_cmd = require('fs')
@@ -449,6 +466,82 @@ client.on('interactionCreate', async interaction => {
     cfg.guilds[guildId].eventChannelId = channel.id
     saveConfig(cfg)
     return interaction.reply({ content: `Channel pengumuman tanggal diset ke <#${channel.id}>`, ephemeral: true })
+  }
+
+  const canWarn = () => ['ManageMessages', 'KickMembers', 'ModerateMembers'].some(p => member.permissions.has(p))
+
+  if (commandName === 'warn') {
+    if (!canWarn()) {
+      return interaction.reply({ content: 'Kamu butuh permission Manage Messages / Kick Members untuk menggunakan ini.', ephemeral: true })
+    }
+    const target = interaction.options.getUser('user')
+    const reason = interaction.options.getString('reason', true)
+    const cfg = loadConfig()
+    if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {}
+    if (!cfg.guilds[guildId].warnings) cfg.guilds[guildId].warnings = {}
+    if (!cfg.guilds[guildId].warnings[target.id]) cfg.guilds[guildId].warnings[target.id] = []
+    cfg.guilds[guildId].warnings[target.id].push({ reason, at: new Date().toISOString(), by: member.user.tag })
+    saveConfig(cfg)
+    const total = cfg.guilds[guildId].warnings[target.id].length
+
+    try {
+      await target.send(`⚠️ Kamu menerima warning di **${interaction.guild.name}**.\n**Alasan:** ${reason}\n**Total warning:** ${total}`)
+    } catch {}
+
+    const embed = new EmbedBuilder()
+      .setColor(0xffa500)
+      .setTitle('⚠️ Warning Diberikan')
+      .setDescription(`${target} telah di-warning`)
+      .addFields(
+        { name: 'Alasan', value: reason },
+        { name: 'Total Warning', value: String(total), inline: true },
+        { name: 'Oleh', value: member.user.tag, inline: true },
+      )
+    return interaction.reply({ embeds: [embed] })
+  }
+
+  if (commandName === 'warns') {
+    const target = interaction.options.getUser('user')
+    const cfg = loadConfig()
+    const warns = cfg.guilds[guildId]?.warnings?.[target.id] || []
+    if (!warns.length) {
+      return interaction.reply({ content: `${target} tidak punya warning. ✅`, ephemeral: true })
+    }
+    const list = warns.map((w, i) => `**${i + 1}.** ${w.reason} — <t:${Math.floor(new Date(w.at).getTime() / 1000)}:R> (oleh ${w.by})`).join('\n')
+    const embed = new EmbedBuilder()
+      .setColor(0xffa500)
+      .setTitle(`⚠️ Warning ${target.tag}`)
+      .setDescription(`Total: **${warns.length}** warning`)
+      .addFields({ name: 'Riwayat', value: list })
+    return interaction.reply({ embeds: [embed] })
+  }
+
+  if (commandName === 'unwarn') {
+    if (!canWarn()) {
+      return interaction.reply({ content: 'Kamu butuh permission Manage Messages / Kick Members untuk menggunakan ini.', ephemeral: true })
+    }
+    const target = interaction.options.getUser('user')
+    const cfg = loadConfig()
+    const warns = cfg.guilds[guildId]?.warnings?.[target.id]
+    if (!warns || !warns.length) {
+      return interaction.reply({ content: `${target} tidak punya warning.`, ephemeral: true })
+    }
+    const removed = warns.pop()
+    saveConfig(cfg)
+    return interaction.reply({ content: `✅ Warning terakhir ${target} dihapus (${removed.reason}). Sisa: **${warns.length}** warning.` })
+  }
+
+  if (commandName === 'clearwarns') {
+    if (!canWarn()) {
+      return interaction.reply({ content: 'Kamu butuh permission Manage Messages / Kick Members untuk menggunakan ini.', ephemeral: true })
+    }
+    const target = interaction.options.getUser('user')
+    const cfg = loadConfig()
+    if (cfg.guilds[guildId]?.warnings) {
+      delete cfg.guilds[guildId].warnings[target.id]
+      saveConfig(cfg)
+    }
+    return interaction.reply({ content: `✅ Semua warning ${target} direset.` })
   }
 })
 
