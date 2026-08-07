@@ -1,14 +1,17 @@
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require('discord.js')
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js')
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState } = require('@discordjs/voice')
 const { spawn, execSync } = require('child_process')
 const path = require('path')
 const play = require('play-dl')
+const eco = require('./economy')
 require('dotenv').config()
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
   ],
 })
 
@@ -254,6 +257,50 @@ const commands = [
     .setName('setwarnchannel')
     .setDescription('Set channel untuk embed pesan warning')
     .addChannelOption(opt => opt.setName('channel').setDescription('Pilih channel').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('balance')
+    .setDescription('Cek saldo coin kamu atau member lain')
+    .addUserOption(opt => opt.setName('user').setDescription('Member (opsional)').setRequired(false)),
+  new SlashCommandBuilder()
+    .setName('daily')
+    .setDescription('Klaim coin harian gratis'),
+  new SlashCommandBuilder()
+    .setName('give')
+    .setDescription('Transfer coin ke member lain')
+    .addUserOption(opt => opt.setName('user').setDescription('Member tujuan').setRequired(true))
+    .addIntegerOption(opt => opt.setName('amount').setDescription('Jumlah coin').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('slots')
+    .setDescription('Main slot machine, menang hingga 10x lipat')
+    .addIntegerOption(opt => opt.setName('bet').setDescription('Jumlah taruhan').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('coinflip')
+    .setDescription('Tebak koin, peluang 50/50')
+    .addStringOption(opt => opt.setName('choice').setDescription('heads atau tails').setRequired(true).addChoices({ name: 'Heads', value: 'heads' }, { name: 'Tails', value: 'tails' }))
+    .addIntegerOption(opt => opt.setName('bet').setDescription('Jumlah taruhan').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('blackjack')
+    .setDescription('Main blackjack melawan dealer')
+    .addIntegerOption(opt => opt.setName('bet').setDescription('Jumlah taruhan').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('hunt')
+    .setDescription('Berburu hewan untuk koleksi zoo-mu'),
+  new SlashCommandBuilder()
+    .setName('zoo')
+    .setDescription('Lihat koleksi hewan zoo')
+    .addUserOption(opt => opt.setName('user').setDescription('Member (opsional)').setRequired(false)),
+  new SlashCommandBuilder()
+    .setName('sell')
+    .setDescription('Jual hewan dari zoo (nama, rarity, atau all)')
+    .addStringOption(opt => opt.setName('target').setDescription('Nama hewan / rarity / all').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('rank')
+    .setDescription('Lihat level dan XP-mu')
+    .addUserOption(opt => opt.setName('user').setDescription('Member (opsional)').setRequired(false)),
+  new SlashCommandBuilder()
+    .setName('leaderboard')
+    .setDescription('Top leaderboard (balance / zoo / level)')
+    .addStringOption(opt => opt.setName('type').setDescription('Jenis leaderboard').setRequired(true).addChoices({ name: 'Balance', value: 'balance' }, { name: 'Zoo', value: 'zoo' }, { name: 'Level', value: 'level' })),
 ].map(cmd => cmd.toJSON())
 
 const fs_cmd = require('fs')
@@ -618,6 +665,309 @@ client.on('interactionCreate', async interaction => {
     }
     await removeWarnRole(interaction.guild, target.id)
     return interaction.reply({ content: `✅ Semua warning ${target} direset.` })
+  }
+
+  if (commandName === 'balance') {
+    const target = interaction.options.getUser('user') || member.user
+    const db = eco.load()
+    const u = eco.getUser(db, guildId, target.id)
+    const info = eco.getLevelInfo(u.xp)
+    const embed = new EmbedBuilder()
+      .setColor(0x5865f2)
+      .setTitle(`Saldo ${target.username}`)
+      .addFields(
+        { name: `${eco.COIN} Balance`, value: eco.formatNumber(u.balance), inline: true },
+        { name: '⭐ Level', value: `${info.level} (${eco.formatNumber(u.xp)} XP)`, inline: true },
+        { name: '🦊 Zoo', value: `${u.zoo.length} hewan`, inline: true },
+      )
+    return interaction.reply({ embeds: [embed] })
+  }
+
+  if (commandName === 'daily') {
+    const db = eco.load()
+    const u = eco.getUser(db, guildId, member.user.id)
+    const now = Date.now()
+    const last = u.lastDaily ? new Date(u.lastDaily).getTime() : 0
+    const elapsed = now - last
+    const DAY = 24 * 60 * 60 * 1000
+    if (elapsed < DAY) {
+      const waitMs = DAY - elapsed
+      const h = Math.floor(waitMs / 3600000)
+      const m = Math.floor((waitMs % 3600000) / 60000)
+      return interaction.reply({ content: `⏳ Kamu sudah klaim hari ini. Klaim lagi dalam **${h}j ${m}m**.`, ephemeral: true })
+    }
+    const reward = 100
+    u.balance += reward
+    u.lastDaily = new Date().toISOString()
+    eco.save(db)
+    const embed = new EmbedBuilder()
+      .setColor(0x57f287)
+      .setTitle('💰 Daily Reward')
+      .setDescription(`Kamu dapat **${eco.formatNumber(reward)}** ${eco.COIN}!`)
+      .setFooter({ text: `Saldo sekarang: ${eco.formatNumber(u.balance)} ${eco.COIN}` })
+    return interaction.reply({ embeds: [embed] })
+  }
+
+  if (commandName === 'give') {
+    const target = interaction.options.getUser('user')
+    const amount = interaction.options.getInteger('amount', true)
+    if (amount <= 0) return interaction.reply({ content: 'Jumlah harus lebih dari 0.', ephemeral: true })
+    const db = eco.load()
+    const from = eco.getUser(db, guildId, member.user.id)
+    const to = eco.getUser(db, guildId, target.id)
+    if (from.balance < amount) {
+      return interaction.reply({ content: `Saldo kamu tidak cukup. (${eco.formatNumber(from.balance)} ${eco.COIN})`, ephemeral: true })
+    }
+    from.balance -= amount
+    to.balance += amount
+    eco.save(db)
+    return interaction.reply({ content: `${eco.COIN} ${eco.formatNumber(amount)} coin diberikan ke ${target}. Saldo kamu: **${eco.formatNumber(from.balance)}** ${eco.COIN}` })
+  }
+
+  if (commandName === 'slots') {
+    const bet = interaction.options.getInteger('bet', true)
+    if (bet <= 0) return interaction.reply({ content: 'Taruhan harus lebih dari 0.', ephemeral: true })
+    const db = eco.load()
+    const u = eco.getUser(db, guildId, member.user.id)
+    if (u.balance < bet) return interaction.reply({ content: `Saldo kamu tidak cukup. (${eco.formatNumber(u.balance)} ${eco.COIN})`, ephemeral: true })
+
+    const symbols = ['🍒', '🍋', '🍇', '💎', '7️⃣', '⭐']
+    const reel = () => symbols[Math.floor(Math.random() * symbols.length)]
+    const a = reel(), b = reel(), c = reel()
+    const line = `[ ${a} ${b} ${c} ]`
+    let win = 0
+    if (a === b && b === c) {
+      const idx = symbols.indexOf(a)
+      const mult = [3, 4, 5, 8, 10, 6][idx]
+      win = bet * mult
+    } else if (a === b || b === c || a === c) {
+      win = Math.floor(bet * 1.5)
+    }
+    u.balance += win - bet
+    eco.save(db)
+    const embed = new EmbedBuilder()
+      .setColor(win > 0 ? 0x57f287 : 0xed4245)
+      .setTitle('🎰 Slot Machine')
+      .setDescription(`${line}\n\n${win > 0 ? `🎉 Kamu menang **${eco.formatNumber(win)}** ${eco.COIN}!` : `💔 Kamu kalah **${eco.formatNumber(bet)}** ${eco.COIN}.`}`)
+      .setFooter({ text: `Saldo: ${eco.formatNumber(u.balance)} ${eco.COIN}` })
+    return interaction.reply({ embeds: [embed] })
+  }
+
+  if (commandName === 'coinflip') {
+    const choice = interaction.options.getString('choice', true)
+    const bet = interaction.options.getInteger('bet', true)
+    if (bet <= 0) return interaction.reply({ content: 'Taruhan harus lebih dari 0.', ephemeral: true })
+    const db = eco.load()
+    const u = eco.getUser(db, guildId, member.user.id)
+    if (u.balance < bet) return interaction.reply({ content: `Saldo kamu tidak cukup. (${eco.formatNumber(u.balance)} ${eco.COIN})`, ephemeral: true })
+
+    const result = Math.random() < 0.5 ? 'heads' : 'tails'
+    const win = choice === result
+    u.balance += win ? bet : -bet
+    eco.save(db)
+    const embed = new EmbedBuilder()
+      .setColor(win ? 0x57f287 : 0xed4245)
+      .setTitle('🪙 Coin Flip')
+      .setDescription(`${result === 'heads' ? 'Heads' : 'Tails'}!\n\n${win ? `🎉 Kamu menang **${eco.formatNumber(bet)}** ${eco.COIN}!` : `💔 Kamu kalah **${eco.formatNumber(bet)}** ${eco.COIN}.`}`)
+      .setFooter({ text: `Saldo: ${eco.formatNumber(u.balance)} ${eco.COIN}` })
+    return interaction.reply({ embeds: [embed] })
+  }
+
+  if (commandName === 'blackjack') {
+    const bet = interaction.options.getInteger('bet', true)
+    if (bet <= 0) return interaction.reply({ content: 'Taruhan harus lebih dari 0.', ephemeral: true })
+    const db = eco.load()
+    const u = eco.getUser(db, guildId, member.user.id)
+    if (u.balance < bet) return interaction.reply({ content: `Saldo kamu tidak cukup. (${eco.formatNumber(u.balance)} ${eco.COIN})`, ephemeral: true })
+    u.balance -= bet
+    eco.save(db)
+
+    const drawCard = () => {
+      const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
+      return values[Math.floor(Math.random() * values.length)]
+    }
+    const cardValue = c => c === 'A' ? 11 : ['J', 'Q', 'K'].includes(c) ? 10 : parseInt(c, 10)
+    const handValue = hand => {
+      let sum = hand.reduce((s, c) => s + cardValue(c), 0)
+      let aces = hand.filter(c => c === 'A').length
+      while (sum > 21 && aces > 0) { sum -= 10; aces-- }
+      return sum
+    }
+    const display = hand => hand.map(c => `\`${c}\``).join(' ')
+
+    const playerHand = [drawCard(), drawCard()]
+    const dealerHand = [drawCard(), drawCard()]
+
+    const makeEmbed = (pVal, dVal, status, ended) => new EmbedBuilder()
+      .setColor(status === 'win' ? 0x57f287 : status === 'lose' ? 0xed4245 : 0x5865f2)
+      .setTitle('🃏 Blackjack')
+      .setDescription(`**Taruhan:** ${eco.formatNumber(bet)} ${eco.COIN}\n**Dealer:** ${display(dealerHand)} ${ended ? `= **${dVal}**` : `(??)`}\n**Kamu:** ${display(playerHand)} = **${pVal}**\n\n${status}`)
+      .setFooter({ text: ended ? `Saldo: ${eco.formatNumber(u.balance)} ${eco.COIN}` : 'Pilih aksi di bawah!' })
+
+    const row = new ActionRowBuilder()
+      .addComponents(
+        new ButtonBuilder().setCustomId('bj_hit').setLabel('Hit').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('bj_stand').setLabel('Stand').setStyle(ButtonStyle.Danger),
+      )
+
+    const finish = async (i, msg) => {
+      const pVal = handValue(playerHand)
+      const dVal = handValue(dealerHand)
+      let status
+      if (pVal > 21) status = '💔 Bust! Kamu kalah.'
+      else if (dVal > 21) { u.balance += bet * 2; status = '🎉 Dealer bust! Kamu menang 2x lipat!' }
+      else if (pVal > dVal) { u.balance += bet * 2; status = '🎉 Kamu menang 2x lipat!' }
+      else if (pVal === dVal) { u.balance += bet; status = '🤝 Push! Taruhan kembali.' }
+      else status = '💔 Dealer menang. Kamu kalah.'
+      eco.save(db)
+      await i.update({ embeds: [makeEmbed(pVal, dVal, status, true)], components: [] })
+      collector.stop()
+    }
+
+    await interaction.reply({ embeds: [makeEmbed(handValue(playerHand), handValue(dealerHand), 'Giliran kamu!', false)], components: [row] })
+
+    const filter = i => i.user.id === member.user.id
+    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 })
+    collector.on('collect', async i => {
+      if (i.customId === 'bj_hit') {
+        playerHand.push(drawCard())
+        if (handValue(playerHand) >= 21) return finish(i)
+        await i.update({ embeds: [makeEmbed(handValue(playerHand), handValue(dealerHand), 'Giliran kamu!', false)], components: [row] })
+      } else if (i.customId === 'bj_stand') {
+        while (handValue(dealerHand) < 17) dealerHand.push(drawCard())
+        return finish(i)
+      }
+    })
+    collector.on('end', async (_, reason) => {
+      if (reason === 'time') {
+        u.balance += bet
+        eco.save(db)
+        await interaction.editReply({ content: '⏰ Waktu habis, taruhan dikembalikan.', embeds: [makeEmbed(handValue(playerHand), handValue(dealerHand), 'Dibatalkan.', true)], components: [] }).catch(() => {})
+      }
+    })
+  }
+
+  if (commandName === 'hunt') {
+    const db = eco.load()
+    const u = eco.getUser(db, guildId, member.user.id)
+    const animal = eco.randomAnimal()
+    u.zoo.push(animal)
+    eco.save(db)
+    const score = eco.zooScore(u.zoo)
+    const embed = new EmbedBuilder()
+      .setColor(0xfee75c)
+      .setTitle('🏹 Berburu!')
+      .setDescription(`Kamu berhasil menangkap **${eco.animalLabel(animal)}**!\nNilai: ${eco.formatNumber(animal.value)} ${eco.COIN}`)
+      .setFooter({ text: `Zoo: ${u.zoo.length} hewan | Skor: ${eco.formatNumber(score)}` })
+    return interaction.reply({ embeds: [embed] })
+  }
+
+  if (commandName === 'zoo') {
+    const target = interaction.options.getUser('user') || member.user
+    const db = eco.load()
+    const u = eco.getUser(db, guildId, target.id)
+    const score = eco.zooScore(u.zoo)
+    if (!u.zoo.length) {
+      return interaction.reply({ content: `${target.username} belum punya hewan. Gunakan \`/hunt\` untuk mulai berburu!`, ephemeral: true })
+    }
+    const grouped = {}
+    u.zoo.forEach(a => {
+      if (!grouped[a.rarity]) grouped[a.rarity] = []
+      grouped[a.rarity].push(a)
+    })
+    const desc = ['legendary', 'epic', 'rare', 'uncommon', 'common']
+      .filter(r => grouped[r])
+      .map(r => `${eco.RARITY_EMOJI[r]} **${eco.RARITY_LABEL[r]}** (${grouped[r].length}): ${grouped[r].slice(0, 10).map(a => a.name).join(', ')}${grouped[r].length > 10 ? '...' : ''}`)
+      .join('\n')
+    const embed = new EmbedBuilder()
+      .setColor(0xfee75c)
+      .setTitle(`🦁 Zoo ${target.username}`)
+      .setDescription(desc)
+      .setFooter({ text: `Total: ${u.zoo.length} hewan | Skor: ${eco.formatNumber(score)}` })
+    return interaction.reply({ embeds: [embed] })
+  }
+
+  if (commandName === 'sell') {
+    const target = interaction.options.getString('target', true).toLowerCase()
+    const db = eco.load()
+    const u = eco.getUser(db, guildId, member.user.id)
+    if (!u.zoo.length) return interaction.reply({ content: 'Zoo kamu kosong.', ephemeral: true })
+
+    const sellable = a => {
+      if (target === 'all') return true
+      if (eco.RARITIES.includes(target)) return a.rarity === target
+      return a.name.toLowerCase() === target
+    }
+    const toSell = u.zoo.filter(sellable)
+    if (!toSell.length) {
+      return interaction.reply({ content: `Tidak ada hewan yang cocok dengan "${target}". Coba: nama hewan, rarity, atau "all".`, ephemeral: true })
+    }
+    const value = eco.zooScore(toSell)
+    u.zoo = u.zoo.filter(a => !sellable(a))
+    u.balance += value
+    eco.save(db)
+    const label = target === 'all' ? `${toSell.length} hewan` : toSell.map(a => a.name).join(', ')
+    return interaction.reply({ content: `${eco.COIN} Menjual **${label}** seharga **${eco.formatNumber(value)}** ${eco.COIN}. Saldo: **${eco.formatNumber(u.balance)}** ${eco.COIN}` })
+  }
+
+  if (commandName === 'rank') {
+    const target = interaction.options.getUser('user') || member.user
+    const db = eco.load()
+    const u = eco.getUser(db, guildId, target.id)
+    const info = eco.getLevelInfo(u.xp)
+    const pct = Math.floor((info.current / info.need) * 100)
+    const barLen = 12
+    const filled = Math.floor((pct / 100) * barLen)
+    const bar = '█'.repeat(filled) + '░'.repeat(barLen - filled)
+    const embed = new EmbedBuilder()
+      .setColor(0x5865f2)
+      .setTitle(`⭐ ${target.username}`)
+      .setDescription(`Level **${info.level}**\n\`${bar}\` ${pct}%\n\n${eco.formatNumber(info.current)} / ${eco.formatNumber(info.need)} XP menuju level ${info.level + 1}`)
+    return interaction.reply({ embeds: [embed] })
+  }
+
+  if (commandName === 'leaderboard') {
+    const type = interaction.options.getString('type', true)
+    const db = eco.load()
+    const entries = []
+    for (const [k, u] of Object.entries(db.users)) {
+      if (!k.startsWith(guildId + ':')) continue
+      const userId = k.split(':')[1]
+      if (type === 'balance') entries.push({ userId, value: u.balance })
+      else if (type === 'zoo') entries.push({ userId, value: eco.zooScore(u.zoo) })
+      else entries.push({ userId, value: u.xp, extra: eco.getLevelInfo(u.xp).level })
+    }
+    entries.sort((a, b) => b.value - a.value)
+    if (!entries.length) return interaction.reply({ content: 'Belum ada data.', ephemeral: true })
+    const top = entries.slice(0, 10)
+    const medals = ['🥇', '🥈', '🥉']
+    const lines = top.map((e, i) => {
+      const name = client.users.cache.get(e.userId)?.username || e.userId
+      const valueText = type === 'level' ? `Level ${e.extra} (${eco.formatNumber(e.value)} XP)` : `${eco.formatNumber(e.value)} ${type === 'zoo' ? 'skor' : '🪙'}`
+      return `${medals[i] || `${i + 1}.`} **${name}** — ${valueText}`
+    })
+    const titles = { balance: '💰 Top Balance', zoo: '🦁 Top Zoo', level: '⭐ Top Level' }
+    const embed = new EmbedBuilder()
+      .setColor(0x5865f2)
+      .setTitle(titles[type])
+      .setDescription(lines.join('\n'))
+    return interaction.reply({ embeds: [embed] })
+  }
+})
+
+client.on('messageCreate', message => {
+  if (message.author.bot || !message.guild) return
+  const db = eco.load()
+  const u = eco.getUser(db, message.guild.id, message.author.id)
+  const now = Date.now()
+  if (now - (u.lastXp || 0) < 60000) return
+  const before = eco.getLevelInfo(u.xp).level
+  u.xp += Math.floor(Math.random() * 10) + 5
+  u.lastXp = now
+  eco.save(db)
+  const after = eco.getLevelInfo(u.xp).level
+  if (after > before) {
+    message.channel.send(`🎉 ${message.author} naik ke level **${after}**!`)
   }
 })
 
