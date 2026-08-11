@@ -71,7 +71,7 @@ if (nodeDir) {
 
 function getQueue(guildId) {
   if (!queue.has(guildId)) {
-    queue.set(guildId, { songs: [], player: null, connection: null, playing: false })
+    queue.set(guildId, { songs: [], player: null, connection: null, playing: false, volume: 1.0, currentResource: null })
   }
   return queue.get(guildId)
 }
@@ -200,7 +200,9 @@ async function playSong(guildId, retries = 3) {
         try { fs.unlinkSync(tmpFile) } catch {}
       })
 
-      const resource = createAudioResource(ffmpeg.stdout, { inputType: 'ogg/opus' })
+      const resource = createAudioResource(ffmpeg.stdout, { inputType: 'ogg/opus', inlineVolume: true })
+      resource.volume.setVolume(q.volume)
+      q.currentResource = resource
       q.player.play(resource)
       q.player.on('error', (err) => console.error('Player error:', err.message))
       q.player.on('stateChange', (oldS, newS) => console.log('Player state:', oldS.status, '->', newS.status))
@@ -224,6 +226,10 @@ const commands = [
   new SlashCommandBuilder().setName('stop').setDescription('Berhenti dan keluar dari voice channel'),
   new SlashCommandBuilder().setName('queue').setDescription('Lihat antrian lagu'),
   new SlashCommandBuilder().setName('nowplaying').setDescription('Lagu yang sedang diputar'),
+  new SlashCommandBuilder()
+    .setName('volume')
+    .setDescription('Atur volume lagu yang sedang diputar (0-200%)')
+    .addIntegerOption(opt => opt.setName('percent').setDescription('Volume dalam persen (0-200)').setRequired(false)),
   new SlashCommandBuilder()
     .setName('setchannel')
     .setDescription('Set channel untuk announcement')
@@ -406,6 +412,7 @@ client.on('interactionCreate', async interaction => {
       q.player.on(AudioPlayerStatus.Idle, () => {
         const proc = activeProcesses.get(guildId)
         if (proc) { proc.kill(); activeProcesses.delete(guildId) }
+        q.currentResource = null
         q.songs.shift()
         playSong(guildId)
       })
@@ -413,6 +420,7 @@ client.on('interactionCreate', async interaction => {
         console.error('Player error:', error)
         const proc = activeProcesses.get(guildId)
         if (proc) { proc.kill(); activeProcesses.delete(guildId) }
+        q.currentResource = null
         q.songs.shift()
         playSong(guildId)
       })
@@ -530,6 +538,25 @@ client.on('interactionCreate', async interaction => {
       )
 
     return interaction.reply({ embeds: [embed] })
+  }
+
+  if (commandName === 'volume') {
+    const q = getQueue(guildId)
+    const percent = interaction.options.getInteger('percent')
+    if (!q.playing || !q.songs.length) {
+      return interaction.reply({ content: 'Tidak ada lagu yang diputar.', ephemeral: true })
+    }
+    if (percent === null) {
+      return interaction.reply({ content: `🔊 Volume sekarang: **${Math.round(q.volume * 100)}%**` })
+    }
+    if (percent < 0 || percent > 200) {
+      return interaction.reply({ content: 'Volume harus antara **0 - 200%**.', ephemeral: true })
+    }
+    q.volume = percent / 100
+    if (q.currentResource?.volume) {
+      q.currentResource.volume.setVolume(q.volume)
+    }
+    return interaction.reply({ content: `🔊 Volume diset ke **${percent}%**` })
   }
 
   if (commandName === 'setchannel') {
